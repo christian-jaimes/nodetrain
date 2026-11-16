@@ -11,9 +11,10 @@ import {
   type NodeTypes,
 } from '@xyflow/react';
 import { useEffect, useMemo, type DragEvent, type MouseEvent } from 'react';
-import { FIT_OPTIONS, getPort } from '../graph/catalog';
-import type { AppEdge, AppNode, NodeKind } from '../graph/types';
-import { checkConnection } from '../graph/validate';
+import { getPort } from '../../shared/graph/catalog';
+import { FIT_OPTIONS } from '../lib/ui';
+import type { AppEdge, AppNode, NodeKind } from '../../shared/graph/types';
+import { checkConnection } from '../../shared/graph/validate';
 import { useBoard } from '../store/board';
 import { ImageGenerationNode } from './nodes/ImageGenerationNode';
 import { ImageInputNode } from './nodes/ImageInputNode';

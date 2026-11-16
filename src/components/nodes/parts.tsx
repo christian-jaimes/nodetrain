@@ -1,8 +1,8 @@
 import { Handle, Position } from '@xyflow/react';
 import { CircleDashed, Check, Clock, LoaderCircle, RefreshCw, TriangleAlert } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
-import { CATALOG, PORT_TYPE_LABEL } from '../../graph/catalog';
-import type { NodeKind, PortDef, RunStatus } from '../../graph/types';
+import { CATALOG, PORT_TYPE_LABEL } from '../../../shared/graph/catalog';
+import type { NodeKind, PortDef, RunStatus } from '../../../shared/graph/types';
 import { NodeIconTile } from '../icons';
 
 export function NodeShell({

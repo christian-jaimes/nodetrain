@@ -4,18 +4,25 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n server,app -c red,gray \"npm:dev:server\" \"npm:dev:app\"",
+    "dev:app": "vite",
+    "dev:server": "tsx watch --clear-screen=false --disable-warning=ExperimentalWarning server/index.ts",
     "build": "tsc -b && vite build",
+    "start": "npm run build && tsx --disable-warning=ExperimentalWarning server/index.ts",
+    "test": "vitest run",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.8",
     "@xyflow/react": "^13.0.1",
+    "hono": "^4.13.19",
     "idb-keyval": "^6.3.0",
     "lucide-react": "^1.73.0",
     "nanoid": "^6.0.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "sharp": "^0.35.5",
     "zustand": "^5.1.0"
   },
   "devDependencies": {
@@ -23,8 +30,14 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.7",
     "oxlint": "^1.90.0",
+    "tsx": "^4.23.15",
     "typescript": "~7.0.2",
-    "vite": "^8.3.6"
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22.13"
   }
 }

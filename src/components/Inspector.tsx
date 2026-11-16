@@ -2,10 +2,12 @@ import { useReactFlow } from '@xyflow/react';
 import { ChevronDown, Download, History, Play, Redo2, Scan, Square, Trash2, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { ASPECT_RATIOS, CATALOG, FIT_OPTIONS, IMAGE_MODELS, QUALITIES } from '../graph/catalog';
-import type { AppNode, ImageGenerationNode as GenNode } from '../graph/types';
-import { selectedOutput, validateGraph } from '../graph/validate';
-import { exportWorkflow, useBoard, type ActivityEntry } from '../store/board';
+import { ASPECT_RATIOS, CATALOG, IMAGE_MODELS, QUALITIES } from '../../shared/graph/catalog';
+import { FIT_OPTIONS } from '../lib/ui';
+import type { AppNode, ImageGenerationNode as GenNode } from '../../shared/graph/types';
+import { selectedOutput, validateGraph } from '../../shared/graph/validate';
+import type { NodeExecutionView } from '../../shared/api';
+import { exportWorkflow, useBoard } from '../store/board';
 import { NodeIconTile } from './icons';
 import { useImageImport } from './nodes/ImageInputNode';
 import { Select, useGenerationState } from './nodes/ImageGenerationNode';
@@ -50,20 +52,42 @@ export function Toolbar({ onShowActivity }: { onShowActivity: () => void }) {
   );
 }
 
-function ActivityList({ entries }: { entries: ActivityEntry[] }) {
+const STATUS_LABEL: Record<NodeExecutionView['status'], string> = {
+  succeeded: 'Succeeded',
+  failed: 'Failed',
+  canceled: 'Canceled',
+  queued: 'Queued',
+  running: 'Running',
+};
+
+function ActivityList({ entries }: { entries: NodeExecutionView[] }) {
   if (!entries.length) return <p className="muted small">No runs yet. Press Run to generate.</p>;
   return (
     <ol className="activity">
       {entries.map((a) => (
         <li key={a.id} className={`activity__item activity__item--${a.status}`}>
           <div className="activity__top">
-            <strong>{a.title}</strong>
-            <span>{new Date(a.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+            <strong>{a.nodeTitle}</strong>
+            <span>{a.endedAt ? new Date(a.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}</span>
           </div>
           <div className="activity__msg">
-            <span className="activity__status">{a.status === 'succeeded' ? 'Succeeded' : a.status === 'failed' ? 'Failed' : 'Canceled'}</span> · {a.message}
+            <span className="activity__status">{STATUS_LABEL[a.status]}</span>
+            {' · '}
+            {a.status === 'succeeded'
+              ? `${a.outputs.length} image${a.outputs.length === 1 ? '' : 's'} from ${a.request?.model ?? 'model'}${a.request?.provider === 'simulated' ? ' (simulated)' : ''}`
+              : a.error}
           </div>
-          <div className="activity__run">Run {a.runId}</div>
+          {a.status === 'succeeded' && a.outputs.length ? (
+            <div className="activity__thumbs">
+              {a.outputs.map((o) => (
+                <img key={o.id} src={o.thumb ?? o.src} alt="" />
+              ))}
+            </div>
+          ) : null}
+          <div className="activity__run">
+            Run {a.runId}
+            {a.startedAt && a.endedAt ? ` · ${((a.endedAt - a.startedAt) / 1000).toFixed(1)}s` : ''}
+          </div>
         </li>
       ))}
     </ol>
@@ -111,7 +135,10 @@ function GenerationProps({ node }: { node: GenNode }) {
       {open &&
         (out ? (
           <>
-            <img className="insp-output" src={out.src} alt="Selected output" />
+            <a href={out.src} target="_blank" rel="noreferrer" title="Open full size">
+              <img className="insp-output" src={out.src} alt="Selected output" />
+            </a>
+            {out.provider === 'simulated' ? <p className="muted small">Simulated preview. Real generation arrives in step 3.</p> : null}
             <div className="insp-output-meta">
               <span>
                 {out.width}×{out.height} · {d.model} · {new Date(out.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -132,7 +159,7 @@ function GenerationProps({ node }: { node: GenNode }) {
                       aria-label={`Use version ${d.outputs.length - i}`}
                       aria-pressed={o.id === out.id}
                     >
-                      <img src={o.src} alt="" />
+                      <img src={o.thumb ?? o.src} alt="" />
                       <span>v{d.outputs.length - i}</span>
                     </button>
                   ))}
@@ -172,7 +199,7 @@ function NodeProperties({ node }: { node: AppNode }) {
           <div className="insp-images">
             {node.data.images.map((img) => (
               <figure key={img.id}>
-                <img src={img.src} alt={img.name} />
+                <img src={img.thumb ?? img.src} alt={img.name} />
                 <figcaption>
                   <span title={img.name}>{img.name}</span>
                   <button

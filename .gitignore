@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local NodeTrain data (boards, run history, images)
+data/
+.env

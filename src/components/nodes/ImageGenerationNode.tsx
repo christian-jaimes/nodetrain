@@ -1,9 +1,9 @@
 import type { NodeProps } from '@xyflow/react';
 import { Play, Sparkles } from 'lucide-react';
-import { ASPECT_RATIOS, CATALOG, IMAGE_MODELS, QUALITIES } from '../../graph/catalog';
-import type { ImageGenerationNode as GenNode } from '../../graph/types';
-import { isStale, resolveInputs, selectedOutput } from '../../graph/validate';
-import { aspectSize } from '../../lib/images';
+import { ASPECT_RATIOS, CATALOG, IMAGE_MODELS, QUALITIES, aspectSize } from '../../../shared/graph/catalog';
+import type { ImageGenerationNode as GenNode } from '../../../shared/graph/types';
+import { isStale, resolveInputs, selectedOutput } from '../../../shared/graph/validate';
+
 import { useBoard } from '../../store/board';
 import { NodeShell, Port, StatusChip } from './parts';
 
@@ -107,7 +107,7 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
 
       <div className={`gen-output ${status === 'stale' ? 'is-stale' : ''}`} style={{ aspectRatio: `${pw} / ${ph}` }}>
         {out ? (
-          <img src={out.src} alt={`Output of ${data.title}`} draggable={false} />
+          <img src={out.thumb ?? out.src} alt={`Output of ${data.title}`} draggable={false} />
         ) : (
           <div className="gen-output__empty">
             <Sparkles size={20} />

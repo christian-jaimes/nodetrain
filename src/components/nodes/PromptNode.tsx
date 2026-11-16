@@ -1,6 +1,6 @@
 import type { NodeProps } from '@xyflow/react';
-import { CATALOG } from '../../graph/catalog';
-import type { PromptNode as PromptNodeType } from '../../graph/types';
+import { CATALOG } from '../../../shared/graph/catalog';
+import type { PromptNode as PromptNodeType } from '../../../shared/graph/types';
 import { useBoard } from '../../store/board';
 import { NodeShell, Port } from './parts';
 
