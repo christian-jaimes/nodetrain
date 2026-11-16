@@ -11,6 +11,7 @@ export function TitleBar() {
   const name = useBoard((s) => s.name);
   const setName = useBoard((s) => s.setName);
   const saveState = useBoard((s) => s.saveState);
+  const provider = useBoard((s) => s.provider);
   const newBlank = useBoard((s) => s.newBlank);
   const setTemplatesOpen = useBoard((s) => s.setTemplatesOpen);
   const [editing, setEditing] = useState(false);
@@ -55,6 +56,14 @@ export function TitleBar() {
           </>
         ) : null}
       </span>
+      {provider ? (
+        <span
+          className={`provider-pill provider-pill--${provider.id}`}
+          title={provider.id === 'simulated' ? 'No model is called. Add OPENAI_API_KEY to a .env file and restart the server to generate real images.' : 'Images are generated with your OpenAI API key.'}
+        >
+          {provider.id === 'simulated' ? 'Simulated' : provider.label}
+        </span>
+      ) : null}
       {menu ? (
         <>
           <div className="backdrop-clear" onClick={() => setMenu(false)} />

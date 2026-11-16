@@ -10,9 +10,8 @@ export type NodeDef = {
   create: () => NodeData;
 };
 
-export const IMAGE_MODELS = ['gpt-image-2', 'gpt-image-1'];
-export const ASPECT_RATIOS = ['Default', '1:1', '3:2', '2:3', '16:9'];
-export const QUALITIES = ['Default', 'Low', 'Medium', 'High'];
+import { DEFAULT_IMAGE_MODEL } from './models';
+export { ASPECT_RATIOS, ALL_QUALITIES, IMAGE_MODEL_LIST } from './models';
 
 export const CATALOG: Record<NodeKind, NodeDef> = {
   prompt: {
@@ -47,7 +46,7 @@ export const CATALOG: Record<NodeKind, NodeDef> = {
       kind: 'imageGeneration',
       title: 'Image generation',
       prompt: '',
-      model: IMAGE_MODELS[0],
+      model: DEFAULT_IMAGE_MODEL,
       aspectRatio: 'Default',
       quality: 'Default',
       status: 'idle',

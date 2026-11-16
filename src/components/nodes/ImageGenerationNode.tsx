@@ -1,24 +1,77 @@
 import type { NodeProps } from '@xyflow/react';
 import { Play, Sparkles } from 'lucide-react';
-import { ASPECT_RATIOS, CATALOG, IMAGE_MODELS, QUALITIES, aspectSize } from '../../../shared/graph/catalog';
+import { CATALOG, aspectSize } from '../../../shared/graph/catalog';
+import { ASPECT_RATIOS, IMAGE_MODEL_LIST, apiSize, getModel, settingsIssues } from '../../../shared/graph/models';
 import type { ImageGenerationNode as GenNode } from '../../../shared/graph/types';
 import { isStale, resolveInputs, selectedOutput } from '../../../shared/graph/validate';
 
 import { useBoard } from '../../store/board';
 import { NodeShell, Port, StatusChip } from './parts';
 
-export function Select({ value, options, onChange, label, id }: { value: string; options: string[]; onChange: (v: string) => void; label: string; id: string }) {
+type Option = string | { value: string; label: string; disabled?: boolean };
+
+export function Select({ value, options, onChange, label, id }: { value: string; options: Option[]; onChange: (v: string) => void; label: string; id: string }) {
+  const opts = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
+  const known = opts.some((o) => o.value === value);
   return (
     <div className="field">
       <label className="field-label" htmlFor={id}>
         {label}
       </label>
       <select id={id} className="nt-select nodrag" value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map((o) => (
-          <option key={o}>{o}</option>
+        {/* Keep an unknown saved value visible instead of silently showing another one. */}
+        {!known ? <option value={value}>{value} (unavailable)</option> : null}
+        {opts.map((o) => (
+          <option key={o.value} value={o.value} disabled={o.disabled}>
+            {o.label}
+          </option>
         ))}
       </select>
     </div>
+  );
+}
+
+/** Model, aspect ratio and quality, limited to what the chosen model supports. */
+export function ModelSettings({ node, idPrefix }: { node: GenNode; idPrefix: string }) {
+  const updateData = useBoard((s) => s.updateData);
+  const notify = useBoard((s) => s.notify);
+  const d = node.data;
+  const model = getModel(d.model);
+  const issues = settingsIssues(d.model, d.aspectRatio, d.quality);
+  const changeModel = (id: string) => {
+    const next = getModel(id)!;
+    const patch: Partial<GenNode['data']> = { model: id };
+    const changed: string[] = [];
+    if (!next.qualities.includes(d.quality)) {
+      patch.quality = 'Default';
+      changed.push(`quality to Default (${next.label} has no "${d.quality}")`);
+    }
+    if (!apiSize(id, d.aspectRatio)) {
+      patch.aspectRatio = 'Default';
+      changed.push(`aspect ratio to Default (${next.label} can't do ${d.aspectRatio})`);
+    }
+    updateData(node.id, patch);
+    if (changed.length) notify(`Changed ${changed.join(' and ')}.`);
+  };
+  return (
+    <>
+      <Select id={`${idPrefix}-model`} label="Model" value={d.model} options={IMAGE_MODEL_LIST.map((m) => ({ value: m.id, label: m.id }))} onChange={changeModel} />
+      <div className="field-row">
+        <Select
+          id={`${idPrefix}-aspect`}
+          label="Aspect ratio"
+          value={d.aspectRatio}
+          options={ASPECT_RATIOS.map((a) => ({ value: a, label: a, disabled: !apiSize(d.model, a) }))}
+          onChange={(v) => updateData(node.id, { aspectRatio: v })}
+        />
+        <Select id={`${idPrefix}-quality`} label="Quality" value={d.quality} options={model?.qualities ?? ['Default']} onChange={(v) => updateData(node.id, { quality: v })} />
+      </div>
+      {issues.length ? (
+        <p className="node-warning" role="status">
+          {issues[0]}
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -93,11 +146,7 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
         value={data.prompt}
         onChange={(e) => updateData(id, { prompt: e.target.value })}
       />
-      <Select id={`gm-${id}`} label="Model" value={data.model} options={IMAGE_MODELS} onChange={(v) => updateData(id, { model: v })} />
-      <div className="field-row">
-        <Select id={`ga-${id}`} label="Aspect ratio" value={data.aspectRatio} options={ASPECT_RATIOS} onChange={(v) => updateData(id, { aspectRatio: v })} />
-        <Select id={`gq-${id}`} label="Quality" value={data.quality} options={QUALITIES} onChange={(v) => updateData(id, { quality: v })} />
-      </div>
+      <ModelSettings node={node} idPrefix={`g-${id}`} />
 
       {data.status === 'failed' && data.error ? (
         <p className="node-error" role="alert">

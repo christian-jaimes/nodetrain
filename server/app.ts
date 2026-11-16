@@ -45,6 +45,7 @@ export function createApp({ dataDir, provider = new SimulatedProvider() }: AppOp
     c.header('Cache-Control', c.res.headers.get('Cache-Control') ?? 'no-store');
   });
 
+  // Never includes credentials: only which provider is active and what it supports.
   app.get('/api/health', (c) => c.json({ ok: true, provider: { id: provider.id, label: provider.label, ...provider.capabilities() } }));
 
   // ---------- Boards ----------

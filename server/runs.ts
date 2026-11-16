@@ -20,6 +20,7 @@ type ExecRow = {
   request: string | null;
   output_ids: string;
   run_key: string | null;
+  usage: string | null;
   started_at: number | null;
   ended_at: number | null;
 };
@@ -84,6 +85,7 @@ export class Orchestrator {
       request: r.request ? JSON.parse(r.request) : undefined,
       outputs: this.artifacts.getMany(JSON.parse(r.output_ids) as string[]),
       runKey: r.run_key ?? undefined,
+      usage: r.usage ? JSON.parse(r.usage) : undefined,
       startedAt: r.started_at ?? undefined,
       endedAt: r.ended_at ?? undefined,
     };
@@ -208,7 +210,7 @@ export class Orchestrator {
     }
   }
 
-  private setExec(id: string, patch: Partial<Pick<ExecRow, 'status' | 'error' | 'error_category' | 'request' | 'output_ids' | 'run_key' | 'started_at' | 'ended_at'>>) {
+  private setExec(id: string, patch: Partial<Pick<ExecRow, 'status' | 'error' | 'error_category' | 'request' | 'output_ids' | 'run_key' | 'usage' | 'started_at' | 'ended_at'>>) {
     const keys = Object.keys(patch) as (keyof typeof patch)[];
     this.db.prepare(`UPDATE node_executions SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...keys.map((k) => patch[k] ?? null), id);
   }
@@ -313,6 +315,7 @@ export class Orchestrator {
         status: 'succeeded',
         output_ids: JSON.stringify(assets.map((a) => a.id)),
         run_key: runKey(node, nodes, edges as never, outputOf),
+        usage: result.usage ? JSON.stringify(result.usage) : null,
         ended_at: Date.now(),
       });
     } catch (err) {

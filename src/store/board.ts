@@ -29,6 +29,8 @@ type BoardState = {
   /** Server revision the canvas was last saved as. */
   revision: number;
   boards: BoardSummary[];
+  /** Which image provider the server is using. */
+  provider: { id: string; label: string } | null;
   name: string;
   nodes: AppNode[];
   edges: AppEdge[];
@@ -277,6 +279,7 @@ export const useBoard = create<BoardState>((set, get) => {
     boardId: null,
     revision: 0,
     boards: [],
+    provider: null,
     name: 'Untitled workflow',
     nodes: [],
     edges: [],
@@ -522,7 +525,8 @@ export const useBoard = create<BoardState>((set, get) => {
       if (initStarted && !get().offline) return;
       initStarted = true;
       try {
-        await api.health();
+        const health = await api.health();
+        set({ provider: { id: health.provider.id, label: health.provider.label } });
         let board: BoardPayload | null = null;
         const lastId = localStorage.getItem(LAST_BOARD_KEY);
         if (lastId) board = await api.getBoard(lastId).catch((e) => (e instanceof ApiError && e.status === 404 ? null : Promise.reject(e)));

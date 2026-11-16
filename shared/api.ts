@@ -41,6 +41,8 @@ export type NodeExecutionView = {
   request?: { prompt: string; referenceIds: string[]; model: string; aspectRatio: string; quality: string; provider: string };
   outputs: ImageAsset[];
   runKey?: string;
+  /** Token usage as reported by the provider, when it reports it. */
+  usage?: Record<string, number>;
   startedAt?: number;
   endedAt?: number;
 };

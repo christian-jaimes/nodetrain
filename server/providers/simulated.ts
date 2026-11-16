@@ -1,5 +1,6 @@
 import sharp, { type OverlayOptions, type Sharp } from 'sharp';
-import { ASPECT_RATIOS, IMAGE_MODELS, QUALITIES, aspectSize } from '../../shared/graph/catalog';
+import { aspectSize } from '../../shared/graph/catalog';
+import { ALL_QUALITIES, ASPECT_RATIOS, IMAGE_MODEL_LIST } from '../../shared/graph/models';
 import { ProviderError, type ImageGenerationRequest, type ImageGenerationResult, type ImageProvider } from './types';
 
 function hashHue(text: string) {
@@ -47,7 +48,7 @@ export class SimulatedProvider implements ImageProvider {
   constructor(private delayMs: [number, number] = [900, 1800]) {}
 
   capabilities() {
-    return { models: IMAGE_MODELS, maxReferences: 16, aspectRatios: ASPECT_RATIOS, qualities: QUALITIES };
+    return { models: IMAGE_MODEL_LIST.map((m) => m.id), maxReferences: 16, aspectRatios: ASPECT_RATIOS, qualities: ALL_QUALITIES };
   }
 
   async generateImage(req: ImageGenerationRequest): Promise<ImageGenerationResult> {

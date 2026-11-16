@@ -2,7 +2,7 @@
 
 An infinite visual workspace for building, connecting and automating AI workflows.
 
-It is a local app: a web canvas plus a small server on your own computer that keeps your workflows, images and run history in a `data/` folder. **No AI model is called yet.** Pressing Run produces a *simulated* preview, stamped as such, until the OpenAI provider arrives in step 3.
+It is a local app: a web canvas plus a small server on your own computer that keeps your workflows, images and run history in a `data/` folder. Image Generation nodes call OpenAI with your own API key. Without a key, Run produces a *simulated* preview, stamped as such, so you can try everything for free.
 
 ## Run it locally (Windows, macOS or Linux)
 
@@ -20,6 +20,23 @@ Then open http://localhost:5173. `npm run dev` starts both the app and the local
 To run it without the dev tools, use `npm start` and open http://localhost:8787.
 
 Your data lives in `data/` next to the code: `nodetrain.db` (boards, every saved revision, run history) and `artifacts/` (every image, stored once by content). Back that folder up to keep your work. Set `NODETRAIN_DATA_DIR` to keep it somewhere else. If you used the step 1 prototype in this browser, its board is imported automatically the first time.
+
+## Connect OpenAI
+
+1. Create an API key at https://platform.openai.com/api-keys. Image models may require a verified organization on your OpenAI account.
+2. In the `nodetrain` folder, copy `.env.example` to a new file named `.env` (Windows: `copy .env.example .env`, macOS/Linux: `cp .env.example .env`).
+3. Open `.env` and paste your key after `OPENAI_API_KEY=`.
+4. Restart `npm run dev`. The title bar shows **OpenAI** in green instead of **Simulated**.
+
+The key stays on your computer. Only the local server reads it, it is never sent to the browser or saved in a board, and `.env` is ignored by git so it can't be committed. **Every run is billed to your OpenAI account.** Token usage is shown per run in the Activity tab. Set `NODETRAIN_PROVIDER=simulated` in `.env` to go back to free simulated previews without removing the key.
+
+| Model | Aspect ratios | Quality |
+| --- | --- | --- |
+| gpt-image-2 (default) | Default, 1:1, 3:2, 2:3, 16:9 | Default, Low, Medium, High |
+| gpt-image-2.5-sunburst, gpt-image-2.5-flare | Default, 1:1, 3:2, 2:3, 16:9 | adds Extra high and Max |
+| gpt-image-1.5, gpt-image-1-mini | Default, 1:1, 3:2, 2:3 | Default, Low, Medium, High |
+
+A prompt-only node uses OpenAI's image generation endpoint. A node with connected reference images uses the edit endpoint, with up to 16 references. Settings a model can't do are greyed out, and boards that used the retired gpt-image-1 are moved to gpt-image-2. Failures are explained in plain words (bad key, out of quota, blocked by the content policy, OpenAI outage) with OpenAI's request id, and rate limits and outages are retried automatically.
 
 ## What works
 
@@ -61,17 +78,17 @@ server/         Local server (Hono + Node's built-in SQLite + sharp)
   db.ts         Schema and migrations
   artifacts.ts  Image validation, storage and thumbnails
   runs.ts       Run orchestrator: snapshots, ordering, status, cancel, recovery
-  providers/    Model provider boundary. `simulated.ts` today, OpenAI in step 3
+  providers/    Model provider boundary. `openai.ts` and `simulated.ts`
 src/            The app (React + React Flow)
   store/        Board state: undo history, autosave, run polling
   components/   Canvas, nodes, sidebar, inspector, overlays
-tests/          `npm test`: graph rules, document migration, server API and runs
+tests/          `npm test`: graph rules, document migration, server API, runs and the OpenAI adapter (mocked, no key needed)
 docs/           Product requirements and visual references
 ```
 
 ## Roadmap
 
 1. ~~Canvas prototype~~
-2. **Graph engine and local backend** (this)
-3. The real image workflow on OpenAI, with run history, stale outputs, selective reruns and export
+2. ~~Graph engine and local backend~~
+3. **The real image workflow on OpenAI** (this)
 4. Polish, accessibility pass, cost readout, then choose the next phase
