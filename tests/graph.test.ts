@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CATALOG } from '../shared/graph/catalog';
 import { DOC_VERSION, fromDocument, migrateDocument, toDocument } from '../shared/graph/document';
 import type { AppEdge, AppNode, ImageAsset, ImageGenerationNode, NodeKind } from '../shared/graph/types';
-import { apiQuality, apiSize, settingsIssues } from '../shared/graph/models';
+import { apiQuality, apiSize, estimateCost, formatUsd, settingsIssues, shutdownNotice } from '../shared/graph/models';
 import { checkConnection, isStale, planRun, resolveInputs, runKey, validateGraph } from '../shared/graph/validate';
 
 const node = (id: string, kind: NodeKind, patch: Record<string, unknown> = {}): AppNode =>
@@ -116,7 +116,7 @@ describe('board documents', () => {
       nodes: [{ id: 'g', type: 'imageGeneration', typeVersion: 1, position: { x: 0, y: 0 }, data: { title: 'G', prompt: '', model: 'gpt-image-1', aspectRatio: '1:1', quality: 'High' } }],
       edges: [],
     });
-    expect(doc.nodes[0].data.model).toBe('gpt-image-2');
+    expect(doc.nodes[0].data.model).toBe('gpt-image-2.6-flare');
     expect(doc.nodes[0].typeVersion).toBe(2);
   });
 
@@ -138,5 +138,21 @@ describe('model settings', () => {
     expect(settingsIssues('gpt-image-2', '16:9', 'High')).toEqual([]);
     expect(settingsIssues('gpt-image-1.5', '16:9', 'Max')).toHaveLength(2);
     expect(settingsIssues('dall-e-3', '1:1', 'Default')[0]).toMatch(/retired/);
+    expect(settingsIssues('gpt-image-2.6-flare', '16:9', 'Default')).toHaveLength(1);
+  });
+
+  it('warns about announced shutdowns', () => {
+    expect(shutdownNotice('gpt-image-1.5')).toBe('OpenAI shuts down gpt-image-1.5 on Dec 1, 2026. Switch to gpt-image-2.6-flare.');
+    expect(shutdownNotice('gpt-image-2.6-flare')).toBeUndefined();
+  });
+
+  it('estimates cost from token usage', () => {
+    // 1,000 image tokens in at $2.50/M + 4,000 out at $8/M
+    expect(estimateCost('gpt-image-1-mini', { inputTokens: 1000, inputImageTokens: 1000, outputTokens: 4000 })).toBeCloseTo(0.0345, 6);
+    // Without a text/image split, the rest of input counts as text.
+    expect(estimateCost('gpt-image-2.6-flare', { inputTokens: 200, outputTokens: 0 })).toBeCloseTo(0.001, 6);
+    expect(estimateCost('gpt-image-2.6-flare', undefined)).toBeUndefined();
+    expect(estimateCost('nope', { outputTokens: 5 })).toBeUndefined();
+    expect([formatUsd(0), formatUsd(0.004), formatUsd(0.3005)]).toEqual(['$0.00', '<$0.01', '$0.30']);
   });
 });

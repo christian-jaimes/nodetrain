@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 import type { BoardRunState, NodeExecStatus, NodeExecutionView, RunStatusApi, RunView } from '../shared/api';
 import { fromDocument, migrateDocument } from '../shared/graph/document';
 import type { AppNode, ImageAsset, ImageGenerationNode } from '../shared/graph/types';
+import { estimateCost } from '../shared/graph/models';
 import { planRun, resolveInputs, runKey, validateNode, type OutputLookup } from '../shared/graph/validate';
 import type { ArtifactStore } from './artifacts';
 import { tx, type DB } from './db';
@@ -34,6 +35,13 @@ type RunRow = {
   created_at: number;
   ended_at: number | null;
 };
+
+/** Local midnight on the computer running the server, which is the user's own. */
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
 
 export class RunError extends Error {
   status: 400 | 404 | 409;
@@ -74,6 +82,8 @@ export class Orchestrator {
   // ---------- Reading ----------
 
   private execView(r: ExecRow): NodeExecutionView {
+    const request = r.request ? (JSON.parse(r.request) as NodeExecutionView['request']) : undefined;
+    const usage = r.usage ? (JSON.parse(r.usage) as Record<string, number>) : undefined;
     return {
       id: r.id,
       runId: r.run_id,
@@ -82,10 +92,11 @@ export class Orchestrator {
       status: r.status,
       error: r.error ?? undefined,
       errorCategory: r.error_category ?? undefined,
-      request: r.request ? JSON.parse(r.request) : undefined,
+      request,
       outputs: this.artifacts.getMany(JSON.parse(r.output_ids) as string[]),
       runKey: r.run_key ?? undefined,
-      usage: r.usage ? JSON.parse(r.usage) : undefined,
+      usage,
+      costUsd: request && usage ? estimateCost(request.model, usage) : undefined,
       startedAt: r.started_at ?? undefined,
       endedAt: r.ended_at ?? undefined,
     };
@@ -115,8 +126,10 @@ export class Orchestrator {
     const latest: Record<string, NodeExecutionView> = {};
     const lastSucceeded: BoardRunState['lastSucceeded'] = {};
     const activity: NodeExecutionView[] = [];
+    let boardSpend = 0;
     for (const row of rows) {
       const view = this.execView(row);
+      boardSpend += view.costUsd ?? 0;
       if (!latest[row.node_id]) latest[row.node_id] = view;
       if (row.status === 'succeeded') {
         (outputs[row.node_id] ??= []).push(...view.outputs);
@@ -127,7 +140,15 @@ export class Orchestrator {
     const active = this.db.prepare(`SELECT id FROM runs WHERE board_id = ? AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1`).get(boardId) as
       | { id: string }
       | undefined;
-    return { outputs, latest, lastSucceeded, activeRunId: active?.id ?? null, activity };
+    return { outputs, latest, lastSucceeded, activeRunId: active?.id ?? null, activity, spend: { board: boardSpend, today: this.spendSince(startOfToday()) } };
+  }
+
+  /** Estimated spend across all boards since a time. Board deletion keeps run history, so this includes deleted boards. */
+  private spendSince(since: number) {
+    const rows = this.db.prepare(`SELECT request, usage FROM node_executions WHERE usage IS NOT NULL AND request IS NOT NULL AND ended_at >= ?`).all(since) as Pick<ExecRow, 'request' | 'usage'>[];
+    let total = 0;
+    for (const r of rows) total += estimateCost((JSON.parse(r.request!) as { model: string }).model, JSON.parse(r.usage!)) ?? 0;
+    return total;
   }
 
   /** Latest successful output of a node across all runs, used when its board holds no selection. */

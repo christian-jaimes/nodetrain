@@ -64,10 +64,11 @@ function Workspace() {
 
   return (
     <div className={`app ${collapsed ? 'is-collapsed' : ''}`}>
-      <Canvas />
-      {loaded && starting ? <StartScreen /> : null}
+      {/* DOM order is the Tab order: sidebar, title, canvas, inspector. Panels float above the canvas by z-index. */}
       <Sidebar ref={searchRef} collapsed={collapsed || starting} onToggle={() => setCollapsed(!collapsed)} />
       <TitleBar />
+      <Canvas />
+      {loaded && starting ? <StartScreen /> : null}
       {!starting ? <Inspector tab={tab} setTab={setTab} /> : null}
       {!starting ? <HintBar /> : null}
       {!starting ? <ZoomControls /> : null}

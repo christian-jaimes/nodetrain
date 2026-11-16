@@ -69,7 +69,7 @@ export const TEMPLATES: Template[] = [
       const nodes: AppNode[] = [style];
       const edges: AppEdge[] = [];
       scenes.forEach((text, i) => {
-        const g = node('imageGeneration', 440, i * 660 - 560, gen({ title: `Scene ${i + 1}`, prompt: text, aspectRatio: '16:9' }));
+        const g = node('imageGeneration', 440, i * 660 - 560, gen({ title: `Scene ${i + 1}`, prompt: text, aspectRatio: '16:9', model: 'gpt-image-2.5-flare' }));
         nodes.push(g);
         edges.push(edge(style, g, 'prompt'));
       });

@@ -1,7 +1,7 @@
 import type { NodeProps } from '@xyflow/react';
 import { Play, Sparkles } from 'lucide-react';
 import { CATALOG, aspectSize } from '../../../shared/graph/catalog';
-import { ASPECT_RATIOS, IMAGE_MODEL_LIST, apiSize, getModel, settingsIssues } from '../../../shared/graph/models';
+import { ASPECT_RATIOS, IMAGE_MODEL_LIST, apiSize, formatDate, getModel, settingsIssues, shutdownNotice } from '../../../shared/graph/models';
 import type { ImageGenerationNode as GenNode } from '../../../shared/graph/types';
 import { isStale, resolveInputs, selectedOutput } from '../../../shared/graph/validate';
 
@@ -38,6 +38,7 @@ export function ModelSettings({ node, idPrefix }: { node: GenNode; idPrefix: str
   const d = node.data;
   const model = getModel(d.model);
   const issues = settingsIssues(d.model, d.aspectRatio, d.quality);
+  const notice = shutdownNotice(d.model);
   const changeModel = (id: string) => {
     const next = getModel(id)!;
     const patch: Partial<GenNode['data']> = { model: id };
@@ -55,7 +56,7 @@ export function ModelSettings({ node, idPrefix }: { node: GenNode; idPrefix: str
   };
   return (
     <>
-      <Select id={`${idPrefix}-model`} label="Model" value={d.model} options={IMAGE_MODEL_LIST.map((m) => ({ value: m.id, label: m.id }))} onChange={changeModel} />
+      <Select id={`${idPrefix}-model`} label="Model" value={d.model} options={IMAGE_MODEL_LIST.map((m) => ({ value: m.id, label: m.shutdown ? `${m.id} (ends ${formatDate(m.shutdown.date)})` : m.id }))} onChange={changeModel} />
       <div className="field-row">
         <Select
           id={`${idPrefix}-aspect`}
@@ -69,6 +70,10 @@ export function ModelSettings({ node, idPrefix }: { node: GenNode; idPrefix: str
       {issues.length ? (
         <p className="node-warning" role="status">
           {issues[0]}
+        </p>
+      ) : notice ? (
+        <p className="node-warning node-warning--soft" role="status">
+          {notice}
         </p>
       ) : null}
     </>

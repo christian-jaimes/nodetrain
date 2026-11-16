@@ -28,15 +28,19 @@ Your data lives in `data/` next to the code: `nodetrain.db` (boards, every saved
 3. Open `.env` and paste your key after `OPENAI_API_KEY=`.
 4. Restart `npm run dev`. The title bar shows **OpenAI** in green instead of **Simulated**.
 
-The key stays on your computer. Only the local server reads it, it is never sent to the browser or saved in a board, and `.env` is ignored by git so it can't be committed. **Every run is billed to your OpenAI account.** Token usage is shown per run in the Activity tab. Set `NODETRAIN_PROVIDER=simulated` in `.env` to go back to free simulated previews without removing the key.
+The key stays on your computer. Only the local server reads it, it is never sent to the browser or saved in a board, and `.env` is ignored by git so it can't be committed. **Every run is billed to your OpenAI account.** Each run's tokens and estimated cost appear in the Activity tab, and the workflow overview shows the estimated spend for this workflow and for today across all workflows. Estimates use OpenAI's published standard prices (checked 2026-11-16) and ignore cache discounts. Your [OpenAI usage page](https://platform.openai.com/usage) has the exact bill. Set `NODETRAIN_PROVIDER=simulated` in `.env` to go back to free simulated previews without removing the key.
 
-| Model | Aspect ratios | Quality |
-| --- | --- | --- |
-| gpt-image-2 (default) | Default, 1:1, 3:2, 2:3, 16:9 | Default, Low, Medium, High |
-| gpt-image-2.5-sunburst, gpt-image-2.5-flare | Default, 1:1, 3:2, 2:3, 16:9 | adds Extra high and Max |
-| gpt-image-1.5, gpt-image-1-mini | Default, 1:1, 3:2, 2:3 | Default, Low, Medium, High |
+| Model | Aspect ratios | Quality | Price per 1M tokens (text in / image in / image out) |
+| --- | --- | --- | --- |
+| gpt-image-2.6-flare (default), gpt-image-2.6-sunburst | Default, 1:1, 3:2, 2:3 | Default, Low, Medium, High | $5 / $8 / $30 |
+| gpt-image-2.5-flare, gpt-image-2.5-sunburst | Default, 1:1, 3:2, 2:3, 16:9 | adds Extra high and Max | $5 / $8 / $30 |
+| gpt-image-2 (shuts down Feb 10, 2027) | Default, 1:1, 3:2, 2:3, 16:9 | Default, Low, Medium, High | $5 / $8 (assumed) / $30 |
+| gpt-image-1.5 (shuts down Dec 1, 2026) | Default, 1:1, 3:2, 2:3 | Default, Low, Medium, High | $5 / $8 / $32 |
+| gpt-image-1-mini (shuts down Dec 1, 2026) | Default, 1:1, 3:2, 2:3 | Default, Low, Medium, High | $2 / $2.50 / $8 |
 
-A prompt-only node uses OpenAI's image generation endpoint. A node with connected reference images uses the edit endpoint, with up to 16 references. Settings a model can't do are greyed out, and boards that used the retired gpt-image-1 are moved to gpt-image-2. Failures are explained in plain words (bad key, out of quota, blocked by the content policy, OpenAI outage) with OpenAI's request id, and rate limits and outages are retried automatically.
+Flare is OpenAI's fast everyday model and Sunburst is tuned for precise edits. OpenAI doesn't yet document custom sizes or the Extra high and Max qualities for 2.6, so use a 2.5 model for 16:9. Nodes on a model with an announced shutdown show a notice.
+
+A prompt-only node uses OpenAI's image generation endpoint. A node with connected reference images uses the edit endpoint, with up to 16 references. Settings a model can't do are greyed out, and boards that used the retired gpt-image-1 are moved to gpt-image-2.6-flare. Failures are explained in plain words (bad key, out of quota, blocked by the content policy, OpenAI outage) with OpenAI's request id, and rate limits and outages are retried automatically.
 
 ## What works
 
@@ -67,6 +71,13 @@ A prompt-only node uses OpenAI's image generation endpoint. A node with connecte
 | Fit workflow | Shift + 1 |
 | Deselect | Esc |
 
+## Accessibility
+
+- Everything is reachable by keyboard in reading order: sidebar, title, canvas (connections, then nodes and their fields), then the Inspector.
+- Focus is always visible, ports and connections have spoken names ("Connection from Background to Image generation, References"), and run states use an icon and a label, never colour alone.
+- Text and buttons meet WCAG AA contrast, and animations stop when the system asks for reduced motion.
+- Checked with axe-core on the start screen, templates, board, selected node and Activity tab: no violations.
+
 ## Project layout
 
 ```
@@ -90,5 +101,5 @@ docs/           Product requirements and visual references
 
 1. ~~Canvas prototype~~
 2. ~~Graph engine and local backend~~
-3. **The real image workflow on OpenAI** (this)
-4. Polish, accessibility pass, cost readout, then choose the next phase
+3. ~~The real image workflow on OpenAI~~
+4. **Polish, accessibility pass and cost readout** (this), then choose the next phase

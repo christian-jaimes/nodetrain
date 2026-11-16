@@ -55,7 +55,7 @@ export const Sidebar = forwardRef<HTMLInputElement, { collapsed: boolean; onTogg
   if (collapsed) {
     return (
       <aside className="panel sidebar sidebar--collapsed">
-        <button className="sidebar__brand" onClick={onToggle} aria-label="Open sidebar">
+        <button className="sidebar__brand" onClick={onToggle} aria-label="nodetrain: open sidebar">
           <Logo />
           <ChevronRight size={16} />
         </button>
@@ -71,7 +71,7 @@ export const Sidebar = forwardRef<HTMLInputElement, { collapsed: boolean; onTogg
 
   return (
     <aside className="panel sidebar" aria-label="Node library">
-      <button className="sidebar__brand" onClick={onToggle} aria-label="Collapse sidebar">
+      <button className="sidebar__brand" onClick={onToggle} aria-label="nodetrain: collapse sidebar">
         <Logo />
         <ChevronRight size={16} className="flip" />
       </button>

@@ -163,6 +163,26 @@ describe('runs', () => {
     expect(run.nodes[0]).toMatchObject({ status: 'failed', error: 'Rate limited.', errorCategory: 'quota' });
   });
 
+  it('estimates cost from reported usage and totals spend', async () => {
+    const image = await png();
+    const priced: ImageProvider = {
+      id: 'priced',
+      label: 'Priced',
+      capabilities: () => ({ models: [], maxReferences: 0, aspectRatios: [], qualities: [] }),
+      // 100 text tokens at $5/M + 10,000 output tokens at $30/M = $0.3005
+      generateImage: async () => ({ images: [{ data: image, mime: 'image/png' }], usage: { inputTokens: 100, inputTextTokens: 100, inputImageTokens: 0, outputTokens: 10_000, totalTokens: 10_100 } }),
+    };
+    make(priced);
+    const b = await createBoard([node('g', 'imageGeneration', { prompt: 'x', model: 'gpt-image-2.6-flare' })], []);
+    const run = await runToEnd(b.id, b.revision);
+    expect(run.nodes[0].costUsd).toBeCloseTo(0.3005, 6);
+    await runToEnd(b.id, b.revision);
+    const state = await json<BoardRunState>(call('GET', `/api/boards/${b.id}/state`));
+    expect(state.spend.board).toBeCloseTo(0.601, 6);
+    expect(state.spend.today).toBeCloseTo(0.601, 6);
+    expect(state.activity[0].costUsd).toBeCloseTo(0.3005, 6);
+  });
+
   it('can be canceled', async () => {
     make(new SimulatedProvider([300, 300]));
     const b = await createBoard([node('a', 'imageGeneration', { prompt: 'x' }), node('b', 'imageGeneration', { prompt: 'y' })], []);
