@@ -70,7 +70,10 @@ function incoming(edges: AppEdge[], nodeId: string, handle: string) {
   return edges.filter((e) => e.target === nodeId && e.targetHandle === handle);
 }
 
-export function resolveInputs(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[]): ResolvedInputs {
+/** Looks up the image a generation node currently passes downstream. */
+export type OutputLookup = (node: ImageGenerationNode) => ImageAsset | undefined;
+
+export function resolveInputs(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = selectedOutput): ResolvedInputs {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const promptParts: ResolvedInputs['promptParts'] = [];
   for (const e of incoming(edges, node.id, 'prompt')) {
@@ -84,7 +87,7 @@ export function resolveInputs(node: ImageGenerationNode, nodes: AppNode[], edges
     const src = byId.get(e.source);
     if (src?.type === 'imageInput') references.push(...src.data.images);
     if (src?.type === 'imageGeneration') {
-      const img = selectedOutput(src);
+      const img = outputOf(src);
       if (img) references.push(img);
     }
   }
@@ -92,8 +95,8 @@ export function resolveInputs(node: ImageGenerationNode, nodes: AppNode[], edges
 }
 
 /** Fingerprint used to tell whether an output is out of date. */
-export function runKey(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[]): string {
-  const r = resolveInputs(node, nodes, edges);
+export function runKey(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = selectedOutput): string {
+  const r = resolveInputs(node, nodes, edges, outputOf);
   const d = node.data;
   return JSON.stringify([r.prompt, r.references.map((i) => i.id), d.model, d.aspectRatio, d.quality]);
 }
@@ -105,9 +108,9 @@ export function isStale(node: ImageGenerationNode, nodes: AppNode[], edges: AppE
 
 export type Issue = { nodeId: string; message: string; detail: string };
 
-export function validateNode(node: AppNode, nodes: AppNode[], edges: AppEdge[]): Issue[] {
+export function validateNode(node: AppNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = selectedOutput): Issue[] {
   if (node.type !== 'imageGeneration') return [];
-  const r = resolveInputs(node, nodes, edges);
+  const r = resolveInputs(node, nodes, edges, outputOf);
   const issues: Issue[] = [];
   if (!r.prompt) issues.push({ nodeId: node.id, message: `${node.data.title}: needs a prompt.`, detail: 'Needs a prompt. Write one in the node or connect a Prompt node.' });
   if (r.references.length > 16) issues.push({ nodeId: node.id, message: `${node.data.title}: too many reference images.`, detail: 'Too many reference images (max 16).' });

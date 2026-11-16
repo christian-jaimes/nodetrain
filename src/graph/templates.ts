@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
-import { CATALOG } from './catalog';
-import type { AppEdge, AppNode, ImageGenerationData, NodeKind } from './types';
-import { sampleBackdrop, sampleBottle } from '../lib/images';
+import { CATALOG } from '../../shared/graph/catalog';
+import type { AppEdge, AppNode, ImageGenerationData, NodeKind } from '../../shared/graph/types';
+import { sampleBackdrop, sampleBottle, uploadDataUrl } from '../lib/images';
 
 export type Template = {
   id: string;
@@ -10,7 +10,7 @@ export type Template = {
   tags: string[];
   /** Node kinds shown on the template card. */
   preview: NodeKind[];
-  build: () => { name: string; nodes: AppNode[]; edges: AppEdge[] };
+  build: () => Promise<{ name: string; nodes: AppNode[]; edges: AppEdge[] }>;
 };
 
 function node(kind: NodeKind, x: number, y: number, patch: Record<string, unknown> = {}): AppNode {
@@ -31,9 +31,13 @@ export const TEMPLATES: Template[] = [
     description: 'Place a product on styled backgrounds with warm, editorial lighting.',
     tags: ['Image generation', 'Marketing'],
     preview: ['imageInput', 'imageInput', 'imageGeneration'],
-    build: () => {
-      const bg = node('imageInput', 0, 0, { title: 'Background', images: [sampleBackdrop(0), sampleBackdrop(1), sampleBackdrop(2)] });
-      const obj = node('imageInput', 0, 300, { title: 'Object', images: [sampleBottle()] });
+    build: async () => {
+      // Sample images are drawn locally, then stored on the server like any upload.
+      const up = (s: { dataUrl: string; name: string }) => uploadDataUrl(s.dataUrl, s.name);
+      const backgrounds = await Promise.all([0, 1, 2].map((i) => up(sampleBackdrop(i))));
+      const bottle = await up(sampleBottle());
+      const bg = node('imageInput', 0, 0, { title: 'Background', images: backgrounds });
+      const obj = node('imageInput', 0, 300, { title: 'Object', images: [bottle] });
       const g = node(
         'imageGeneration',
         420,
@@ -52,7 +56,7 @@ export const TEMPLATES: Template[] = [
     description: 'Shared style context feeding three scenes you can rerun one at a time.',
     tags: ['Image generation', 'Storyboard'],
     preview: ['prompt', 'imageGeneration', 'imageGeneration', 'imageGeneration'],
-    build: () => {
+    build: async () => {
       const style = node('prompt', 0, 260, {
         title: 'Shared style',
         text: 'Cinematic storyboard frame, muted teal and amber palette, 35mm lens, soft film grain.',
@@ -78,7 +82,7 @@ export const TEMPLATES: Template[] = [
     description: 'Generate a base mascot, then branch poses from it.',
     tags: ['Mascot creation', 'Branding'],
     preview: ['prompt', 'imageGeneration', 'imageGeneration'],
-    build: () => {
+    build: async () => {
       const desc = node('prompt', 0, 120, {
         title: 'Character',
         text: 'A friendly round robot mascot with big eyes, soft orange shell, flat vector style, white background.',

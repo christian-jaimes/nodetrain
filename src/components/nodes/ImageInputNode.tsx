@@ -1,8 +1,8 @@
 import type { NodeProps } from '@xyflow/react';
 import { ImagePlus, Upload } from 'lucide-react';
 import { useRef, useState, type DragEvent } from 'react';
-import { CATALOG } from '../../graph/catalog';
-import type { ImageInputNode as ImageInputNodeType } from '../../graph/types';
+import { CATALOG } from '../../../shared/graph/catalog';
+import type { ImageInputNode as ImageInputNodeType } from '../../../shared/graph/types';
 import { importImage } from '../../lib/images';
 import { useBoard } from '../../store/board';
 import { NodeShell, Port } from './parts';
@@ -82,12 +82,12 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
             <span>Drop images or click to upload</span>
           </button>
         ) : rest.length === 0 ? (
-          <img className="image-single" src={first.src} alt={first.name} draggable={false} />
+          <img className="image-single" src={first.thumb ?? first.src} alt={first.name} draggable={false} />
         ) : (
           <div className="image-grid">
-            <img className="image-grid__main" src={first.src} alt={first.name} draggable={false} />
+            <img className="image-grid__main" src={first.thumb ?? first.src} alt={first.name} draggable={false} />
             {shown.map((img) => (
-              <img key={img.id} src={img.src} alt={img.name} draggable={false} />
+              <img key={img.id} src={img.thumb ?? img.src} alt={img.name} draggable={false} />
             ))}
             {more > 0 ? (
               <span className="image-grid__more">+{more} more</span>

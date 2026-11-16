@@ -1,5 +1,5 @@
 import { Image as ImageIcon, Sparkles, Type, type LucideIcon } from 'lucide-react';
-import type { NodeKind } from '../graph/types';
+import type { NodeKind } from '../../shared/graph/types';
 
 export const NODE_ICONS: Record<NodeKind, LucideIcon> = {
   prompt: Type,

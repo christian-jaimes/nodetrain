@@ -69,9 +69,19 @@ export function getPort(kind: NodeKind, handleType: 'source' | 'target', handleI
   return ports.find((p) => p.id === handleId) ?? (ports.length === 1 && !handleId ? ports[0] : undefined);
 }
 
-/** Keeps fitted content clear of the floating sidebar, title and inspector. */
-export const FIT_OPTIONS = {
-  padding: { top: '90px', bottom: '80px', left: '320px', right: '420px' },
-  maxZoom: 1,
-  duration: 250,
-} as const;
+
+/** Output size in pixels for an aspect ratio setting. */
+export function aspectSize(aspect: string): [number, number] {
+  switch (aspect) {
+    case '3:2':
+      return [1152, 768];
+    case '2:3':
+      return [768, 1152];
+    case '16:9':
+      return [1280, 720];
+    case '1:1':
+      return [1024, 1024];
+    default:
+      return [1152, 768];
+  }
+}

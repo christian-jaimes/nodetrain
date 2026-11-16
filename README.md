@@ -2,11 +2,11 @@
 
 An infinite visual workspace for building, connecting and automating AI workflows.
 
-This is **step 1 of the build plan: a clickable canvas prototype.** It runs entirely in your browser. No AI model is called yet: pressing Run produces a *simulated* preview (labelled as such) so the canvas, connections and run states can be judged before we wire up OpenAI in step 3.
+It is a local app: a web canvas plus a small server on your own computer that keeps your workflows, images and run history in a `data/` folder. **No AI model is called yet.** Pressing Run produces a *simulated* preview, stamped as such, until the OpenAI provider arrives in step 3.
 
 ## Run it locally (Windows, macOS or Linux)
 
-You need [Node.js](https://nodejs.org) 20 or newer.
+You need [Node.js](https://nodejs.org) 22.13 or newer (it includes the SQLite database NodeTrain uses, so there is nothing else to install).
 
 ```bash
 git clone https://github.com/christian-jaimes/nodetrain.git
@@ -15,7 +15,11 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5173.
+Then open http://localhost:5173. `npm run dev` starts both the app and the local server (on port 8787, reachable only from your own machine).
+
+To run it without the dev tools, use `npm start` and open http://localhost:8787.
+
+Your data lives in `data/` next to the code: `nodetrain.db` (boards, every saved revision, run history) and `artifacts/` (every image, stored once by content). Back that folder up to keep your work. Set `NODETRAIN_DATA_DIR` to keep it somewhere else. If you used the step 1 prototype in this browser, its board is imported automatically the first time.
 
 ## What works
 
@@ -28,7 +32,10 @@ Then open http://localhost:5173.
 - **Inspector** for the selected node, showing the exact prompt that will be sent, the settings, the output, earlier versions and the run activity.
 - **Run states**: Not run, Queued, Generating, Up to date, Failed, and **Out of date** once an input changes after a run. Each state has an icon and a label, so colour is never the only signal.
 - **Undo/redo**, copy/paste and duplicate. Run results are kept out of undo, so undo never deletes an output.
-- **Autosave** to the browser (IndexedDB) with a Saved / Saving / Not saved indicator. Your board survives a refresh.
+- **Autosave** to the local server with a Saved / Saving / Not saved indicator. Each save is a new revision, and saving from an older tab is refused rather than overwriting.
+- **Several workflows**: the Workflows tab lists your boards, and starting a template creates a new one.
+- **Runs happen on the server.** A run uses one saved revision, so later edits never change what it did. Refreshing the page mid-run picks the run back up, and a run interrupted by stopping the server is marked as failed. Each node's run records the exact prompt, reference images, model and settings used.
+- **Images are validated on the server** by decoding them. Files that are not real images are rejected whatever their name. Large images get a preview thumbnail.
 - **Export** the workflow as JSON.
 
 ## Keyboard
@@ -46,17 +53,25 @@ Then open http://localhost:5173.
 ## Project layout
 
 ```
-src/
-  graph/        Pure workflow logic: node catalog, port types, validation, run planning, templates
-  store/        Board state (zustand): history, autosave, simulated runs
+shared/         Used by both app and server
+  graph/        Node catalog, port types, validation, run planning, board document format and migrations
+  api.ts        Request and response shapes
+server/         Local server (Hono + Node's built-in SQLite + sharp)
+  app.ts        HTTP routes
+  db.ts         Schema and migrations
+  artifacts.ts  Image validation, storage and thumbnails
+  runs.ts       Run orchestrator: snapshots, ordering, status, cancel, recovery
+  providers/    Model provider boundary. `simulated.ts` today, OpenAI in step 3
+src/            The app (React + React Flow)
+  store/        Board state: undo history, autosave, run polling
   components/   Canvas, nodes, sidebar, inspector, overlays
-  lib/images.ts Image import/downscale and the simulated generator
+tests/          `npm test`: graph rules, document migration, server API and runs
 docs/           Product requirements and visual references
 ```
 
 ## Roadmap
 
-1. **Canvas prototype** (this)
-2. Graph engine and local backend: versioned schemas, SQLite run history, image files on disk, OpenAI key kept server-side
+1. ~~Canvas prototype~~
+2. **Graph engine and local backend** (this)
 3. The real image workflow on OpenAI, with run history, stale outputs, selective reruns and export
 4. Polish, accessibility pass, cost readout, then choose the next phase

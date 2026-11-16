@@ -15,16 +15,23 @@ export type NodeKind = 'prompt' | 'imageInput' | 'imageGeneration';
 
 export type RunStatus = 'idle' | 'queued' | 'running' | 'succeeded' | 'failed';
 
-/** An image artifact. Treated as immutable once created. */
+/**
+ * Reference to an immutable image artifact stored by the local server.
+ * `src` is the full-size URL; `thumb` a smaller preview when available.
+ */
 export type ImageAsset = {
   id: string;
   src: string;
+  thumb?: string;
   name: string;
   width: number;
   height: number;
+  mime?: string;
   createdAt: number;
   /** Set on generated images: which run produced it. */
   runId?: string;
+  /** Which provider produced it, e.g. "simulated" or "openai". */
+  provider?: string;
 };
 
 export type PromptData = {

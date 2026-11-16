@@ -2,10 +2,10 @@ import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
 import { Canvas } from './components/Canvas';
 import { Inspector } from './components/Inspector';
-import { HintBar, NodePicker, StartScreen, TemplatesModal, TitleBar, Toast, ZoomControls } from './components/Overlays';
+import { Busy, HintBar, NodePicker, ServerBanner, StartScreen, TemplatesModal, TitleBar, Toast, ZoomControls } from './components/Overlays';
 import { Sidebar } from './components/Sidebar';
 import { useBoard } from './store/board';
-import { FIT_OPTIONS } from './graph/catalog';
+import { FIT_OPTIONS } from './lib/ui';
 
 function isTyping(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
@@ -74,6 +74,8 @@ function Workspace() {
       <NodePicker />
       {templatesOpen ? <TemplatesModal /> : null}
       <Toast />
+      <ServerBanner />
+      <Busy />
     </div>
   );
 }

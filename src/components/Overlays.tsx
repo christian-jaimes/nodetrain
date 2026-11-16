@@ -1,8 +1,8 @@
 import { useReactFlow, useViewport } from '@xyflow/react';
 import { ArrowRight, Check, ChevronDown, CloudOff, Layers, LoaderCircle, MousePointer2, Plus, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CATALOG, NODE_KINDS, getPort } from '../graph/catalog';
-import type { NodeKind } from '../graph/types';
+import { CATALOG, NODE_KINDS, getPort } from '../../shared/graph/catalog';
+import type { NodeKind } from '../../shared/graph/types';
 import { TEMPLATES } from '../graph/templates';
 import { useBoard } from '../store/board';
 import { NodeIconTile } from './icons';
@@ -81,7 +81,7 @@ export function TitleBar() {
             <button
               role="menuitem"
               onClick={() => {
-                newBlank();
+                void newBlank();
                 setMenu(false);
               }}
             >
@@ -176,7 +176,7 @@ export function TemplatesModal() {
                 ))}
                 <button
                   className={i === 0 ? 'primary-btn primary-btn--sm' : 'secondary-btn secondary-btn--sm'}
-                  onClick={() => loadTemplate(t)}
+                  onClick={() => void loadTemplate(t)}
                 >
                   Use template <ArrowRight size={14} />
                 </button>
@@ -269,6 +269,52 @@ export function NodePicker() {
         </ul>
       </div>
     </>
+  );
+}
+
+export function ServerBanner() {
+  const offline = useBoard((s) => s.offline);
+  const saveState = useBoard((s) => s.saveState);
+  const saveError = useBoard((s) => s.saveError);
+  const init = useBoard((s) => s.init);
+  const boardId = useBoard((s) => s.boardId);
+  const save = useBoard((s) => s.save);
+  if (offline) {
+    return (
+      <div className="banner" role="alert">
+        <CloudOff size={18} />
+        <span>
+          Can't reach the NodeTrain server, so changes aren't being saved. Start it with <code>npm run dev</code>.
+        </span>
+        <button className="secondary-btn secondary-btn--sm" onClick={() => (boardId ? void save().catch(() => {}) : void init())}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (saveState === 'error' && saveError) {
+    return (
+      <div className="banner" role="alert">
+        <CloudOff size={18} />
+        <span>{saveError}</span>
+        <button className="secondary-btn secondary-btn--sm" onClick={() => window.location.reload()}>
+          Reload
+        </button>
+      </div>
+    );
+  }
+  return null;
+}
+
+export function Busy() {
+  const busy = useBoard((s) => s.busy);
+  if (!busy) return null;
+  return (
+    <div className="busy" role="status">
+      <div>
+        <LoaderCircle size={18} className="spin" /> {busy}
+      </div>
+    </div>
   );
 }
 
