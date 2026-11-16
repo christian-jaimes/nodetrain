@@ -1,4 +1,4 @@
-import type { BoardPayload, BoardRunState, BoardSummary, ProviderStatus, RunView, SaveBoardRequest } from '../../shared/api';
+import type { BoardPayload, BoardRunState, BoardSummary, KeyProviderId, Profile, ProviderStatus, RunView, SaveBoardRequest } from '../../shared/api';
 import type { BoardDocument } from '../../shared/graph/document';
 import type { ImageAsset } from '../../shared/graph/types';
 
@@ -47,6 +47,8 @@ export const api = {
   createBoard: (name: string, document?: BoardDocument) => request<BoardPayload>('POST', '/api/boards', { name, document }),
   getBoard: (id: string) => request<BoardPayload>('GET', `/api/boards/${id}`),
   saveBoard: (id: string, body: SaveBoardRequest) => request<BoardPayload>('PUT', `/api/boards/${id}`, body),
+  setFavorite: (id: string, favorite: boolean) => request<BoardPayload>('PATCH', `/api/boards/${id}`, { favorite }),
+  duplicateBoard: (id: string) => request<BoardPayload>('POST', `/api/boards/${id}/duplicate`),
   deleteBoard: (id: string) => request<void>('DELETE', `/api/boards/${id}`),
   boardState: (id: string) => request<BoardRunState>('GET', `/api/boards/${id}/state`),
   startRun: (boardId: string, revision: number, targetNodeId?: string) => request<RunView>('POST', `/api/boards/${boardId}/runs`, { revision, targetNodeId }),
@@ -54,8 +56,10 @@ export const api = {
   cancelRun: (id: string) => request<RunView>('POST', `/api/runs/${id}/cancel`),
   settings: () => request<ProviderStatus>('GET', '/api/settings'),
   // The header marks the request as coming from this app (see server/app.ts).
-  saveOpenAIKey: (apiKey: string) => request<ProviderStatus>('PUT', '/api/settings/openai-key', { apiKey }, { 'x-nodetrain-client': '1' }),
-  removeOpenAIKey: () => request<ProviderStatus>('DELETE', '/api/settings/openai-key', undefined, { 'x-nodetrain-client': '1' }),
+  saveKey: (provider: KeyProviderId, apiKey: string) => request<ProviderStatus>('PUT', `/api/settings/keys/${provider}`, { apiKey }, { 'x-nodetrain-client': '1' }),
+  removeKey: (provider: KeyProviderId) => request<ProviderStatus>('DELETE', `/api/settings/keys/${provider}`, undefined, { 'x-nodetrain-client': '1' }),
+  profile: () => request<Profile>('GET', '/api/profile'),
+  saveProfile: (p: Profile) => request<Profile>('PUT', '/api/profile', p, { 'x-nodetrain-client': '1' }),
   upload: (file: Blob, name: string) => request<ImageAsset>('POST', '/api/artifacts', file, { 'x-file-name': encodeURIComponent(name) }),
 };
 

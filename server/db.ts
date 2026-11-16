@@ -69,6 +69,11 @@ const MIGRATIONS: string[] = [
   `,
   // 2: token usage reported by the provider, per node execution.
   `ALTER TABLE node_executions ADD COLUMN usage TEXT;`,
+  // 3: favorites for the workflow gallery, and a marker on run history copied into a duplicated workflow (so copies never count as new spend).
+  `
+  ALTER TABLE boards ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE node_executions ADD COLUMN copied INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 export type DB = DatabaseSync;

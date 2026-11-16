@@ -23,7 +23,9 @@ function Workspace() {
   const [tab, setTab] = useState<'properties' | 'activity'>('properties');
   const searchRef = useRef<HTMLInputElement>(null);
   const { fitView } = useReactFlow();
-  const starting = showStart && empty;
+  const open = useBoard((s) => s.boardId !== null);
+  const galleryOpen = useBoard((s) => s.galleryOpen);
+  const starting = open && showStart && empty;
 
   useEffect(() => {
     void useBoard.getState().init();
@@ -36,8 +38,14 @@ function Workspace() {
       const key = e.key.toLowerCase();
       if (mod && key === 'k') {
         e.preventDefault();
+        if (!s.boardId) return;
         setCollapsed(false);
         setTimeout(() => searchRef.current?.focus(), 0);
+        return;
+      }
+      if (s.galleryOpen) {
+        // The gallery covers the canvas: only Escape does anything, and only when a workflow is open to go back to.
+        if (e.key === 'Escape' && s.boardId) s.setGalleryOpen(false);
         return;
       }
       if (mod && e.key === 'Enter') {
@@ -67,13 +75,14 @@ function Workspace() {
   return (
     <div className={`app ${collapsed ? 'is-collapsed' : ''}`}>
       {/* DOM order is the Tab order: sidebar, title, canvas, inspector. Panels float above the canvas by z-index. */}
+      {galleryOpen ? <div className="scrim" onClick={() => useBoard.getState().boardId && useBoard.getState().setGalleryOpen(false)} /> : null}
       <Sidebar ref={searchRef} collapsed={collapsed || starting} onToggle={() => setCollapsed(!collapsed)} />
-      <TitleBar />
+      {open ? <TitleBar /> : null}
       <Canvas />
       {loaded && starting ? <StartScreen /> : null}
-      {!starting ? <Inspector tab={tab} setTab={setTab} /> : null}
-      {!starting ? <HintBar /> : null}
-      {!starting ? <ZoomControls /> : null}
+      {open && !starting ? <Inspector tab={tab} setTab={setTab} /> : null}
+      {open && !starting ? <HintBar /> : null}
+      {open && !starting ? <ZoomControls /> : null}
       <NodePicker />
       {templatesOpen ? <TemplatesModal /> : null}
       {settingsOpen ? <AccountSettings /> : null}

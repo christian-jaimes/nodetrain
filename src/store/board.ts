@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { del as idbDel, get as idbGet } from 'idb-keyval';
 import type { NodeChangeset, EdgeChangeset, XYPosition } from '@xyflow/react';
-import type { BoardPayload, BoardRunState, BoardSummary, NodeExecutionView, RunView } from '../../shared/api';
+import type { BoardPayload, BoardRunState, BoardSummary, NodeExecutionView, Profile, RunView } from '../../shared/api';
 import { CATALOG, getPort } from '../../shared/graph/catalog';
 import { fromDocument, migrateDocument, toDocument } from '../../shared/graph/document';
 import { checkConnection, planRun, type CheckResult, type ConnectionLike } from '../../shared/graph/validate';
@@ -10,6 +10,7 @@ import { RUN_FIELDS, type AppEdge, type AppNode, type ImageAsset, type ImageGene
 import { ApiError, OfflineError, api, errorText } from '../lib/api';
 import { uploadDataUrl } from '../lib/images';
 import type { Template } from '../graph/templates';
+import { DEFAULT_GALLERY, type GalleryView } from '../lib/gallery';
 
 type Snapshot = { name: string; nodes: AppNode[]; edges: AppEdge[] };
 
@@ -29,6 +30,10 @@ type BoardState = {
   /** Server revision the canvas was last saved as. */
   revision: number;
   boards: BoardSummary[];
+  /** The workflow gallery (sidebar expanded over the screen) and its search, filter and sort. */
+  galleryOpen: boolean;
+  gallery: GalleryView;
+  profile: Profile;
   /** Which image provider the server is using. */
   provider: { id: string; label: string } | null;
   name: string;
@@ -77,6 +82,13 @@ type BoardState = {
   newBlank: () => Promise<void>;
   openBoard: (id: string) => Promise<void>;
   refreshBoards: () => Promise<void>;
+  setGalleryOpen: (v: boolean) => void;
+  setGallery: (patch: Partial<GalleryView>) => void;
+  toggleFavorite: (id: string) => Promise<void>;
+  duplicateBoard: (id: string) => Promise<void>;
+  renameBoard: (id: string, name: string) => Promise<void>;
+  removeBoard: (id: string) => Promise<void>;
+  setProfile: (p: Profile) => void;
   setShowStart: (v: boolean) => void;
   setTemplatesOpen: (v: boolean) => void;
   setSettingsOpen: (v: boolean) => void;
@@ -239,6 +251,7 @@ export const useBoard = create<BoardState>((set, get) => {
     const { nodes, edges } = fromDocument(b.document);
     pollToken++;
     set({
+      galleryOpen: false,
       boardId: b.id,
       revision: b.revision,
       name: b.name,
@@ -285,6 +298,9 @@ export const useBoard = create<BoardState>((set, get) => {
     boardId: null,
     revision: 0,
     boards: [],
+    galleryOpen: false,
+    gallery: DEFAULT_GALLERY,
+    profile: { name: '', picture: null },
     provider: null,
     name: 'Untitled workflow',
     nodes: [],
@@ -484,7 +500,7 @@ export const useBoard = create<BoardState>((set, get) => {
       try {
         await saveNow().catch(() => {});
         if (get().boardId && get().nodes.length === 0) {
-          set({ showStart: true });
+          set({ showStart: true, galleryOpen: false });
           return;
         }
         const board = await api.createBoard('Untitled workflow');
@@ -514,6 +530,75 @@ export const useBoard = create<BoardState>((set, get) => {
       }
     },
 
+    setGalleryOpen: (v) => {
+      set({ galleryOpen: v });
+      if (v) void get().refreshBoards();
+    },
+    setGallery: (patch) => set({ gallery: { ...get().gallery, ...patch } }),
+
+    toggleFavorite: async (id) => {
+      const b = get().boards.find((x) => x.id === id);
+      if (!b) return;
+      const favorite = !b.favorite;
+      set({ boards: get().boards.map((x) => (x.id === id ? { ...x, favorite } : x)) });
+      try {
+        await api.setFavorite(id, favorite);
+      } catch (err) {
+        set({ boards: get().boards.map((x) => (x.id === id ? { ...x, favorite: !favorite } : x)) });
+        get().notify(errorText(err), 'error');
+      }
+    },
+
+    duplicateBoard: async (id) => {
+      try {
+        if (id === get().boardId) await saveNow().catch(() => {});
+        const copy = await api.duplicateBoard(id);
+        await get().refreshBoards();
+        get().notify(`Created “${copy.name}”.`);
+      } catch (err) {
+        get().notify(errorText(err), 'error');
+      }
+    },
+
+    renameBoard: async (id, raw) => {
+      const name = raw.trim();
+      if (!name) return;
+      try {
+        if (id === get().boardId) {
+          get().setName(name);
+          await saveNow();
+        } else {
+          const b = await api.getBoard(id);
+          await api.saveBoard(id, { name, baseRevision: b.revision, document: b.document });
+        }
+        await get().refreshBoards();
+      } catch (err) {
+        get().notify(errorText(err), 'error');
+      }
+    },
+
+    removeBoard: async (id) => {
+      try {
+        if (id === get().boardId) {
+          clearTimeout(saveTimer);
+          pollToken++;
+        }
+        await api.deleteBoard(id);
+        if (id === get().boardId) {
+          // No workflow open any more: back to the gallery.
+          lastSavedJson = '';
+          localStorage.removeItem(LAST_BOARD_KEY);
+          set({ boardId: null, nodes: [], edges: [], past: [], future: [], activity: [], running: false, activeRunId: null, showStart: false, galleryOpen: true, name: 'Untitled workflow', saveState: 'idle' });
+        }
+        await get().refreshBoards();
+        get().notify('Workflow removed.');
+      } catch (err) {
+        get().notify(errorText(err), 'error');
+      }
+    },
+
+    setProfile: (profile) => set({ profile }),
+
     setShowStart: (v) => set({ showStart: v }),
     setTemplatesOpen: (v) => set({ templatesOpen: v }),
     setSettingsOpen: (v) => set({ settingsOpen: v }),
@@ -537,17 +622,19 @@ export const useBoard = create<BoardState>((set, get) => {
       try {
         const health = await api.health();
         set({ provider: { id: health.provider.id, label: health.provider.label } });
+        void api.profile().then((profile) => set({ profile }), () => {});
         let board: BoardPayload | null = null;
         const lastId = localStorage.getItem(LAST_BOARD_KEY);
         if (lastId) board = await api.getBoard(lastId).catch((e) => (e instanceof ApiError && e.status === 404 ? null : Promise.reject(e)));
         const boards = await api.listBoards();
         if (!board && boards.length) board = await api.getBoard(boards[0].id);
         if (!board) board = await importLegacyBoard();
-        let fresh = false;
         if (!board) {
-          board = await api.createBoard('Untitled workflow');
-          fresh = true;
+          // First launch: nothing to open yet, so show the gallery's empty state.
+          set({ loaded: true, boards, galleryOpen: true });
+          return;
         }
+        const fresh = false;
         const state = await api.boardState(board.id);
         set({ loaded: true });
         showBoard(board, state, fresh || board.document.nodes.length === 0);

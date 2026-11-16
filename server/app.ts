@@ -4,13 +4,14 @@ import { Readable } from 'node:stream';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { nanoid } from 'nanoid';
-import type { BoardPayload, BoardSummary, SaveBoardRequest } from '../shared/api';
+import { KEY_PROVIDERS, type BoardPayload, type BoardSummary, type SaveBoardRequest } from '../shared/api';
 import { DocumentError, migrateDocument, type BoardDocument } from '../shared/graph/document';
 import { ArtifactError, ArtifactStore, MAX_UPLOAD_BYTES } from './artifacts';
 import { openDatabase, tx, type DB } from './db';
 import { ProviderManager } from './providers/manager';
 import { SimulatedProvider } from './providers/simulated';
 import { ProviderError, type ImageProvider } from './providers/types';
+import { ProfileStore } from './profile';
 import { Orchestrator, RunError } from './runs';
 
 export type AppOptions = {
@@ -32,7 +33,7 @@ function hostnameOf(value: string | undefined) {
   }
 }
 
-type BoardRow = { id: string; name: string; revision: number; created_at: number; updated_at: number };
+type BoardRow = { id: string; name: string; revision: number; favorite: number; created_at: number; updated_at: number };
 
 const EMPTY_DOC: BoardDocument = { format: 'nodetrain.board', version: 1, nodes: [], edges: [] };
 
@@ -45,6 +46,7 @@ export function createApp({ dataDir, provider = new SimulatedProvider(), provide
   const db: DB = openDatabase(join(dataDir, 'nodetrain.db'));
   const artifacts = new ArtifactStore(db, dataDir);
   const providers = makeProviders ? makeProviders(dataDir) : ProviderManager.fixed(dataDir, provider);
+  const profile = new ProfileStore(dataDir);
   const runs = new Orchestrator(db, artifacts, () => providers.current());
   runs.recoverInterrupted();
 
@@ -83,11 +85,17 @@ export function createApp({ dataDir, provider = new SimulatedProvider(), provide
     if (c.req.header('x-nodetrain-client') !== '1') return c.json({ error: 'Forbidden.' }, 403);
     await next();
   };
-  app.put('/api/settings/openai-key', requireAppHeader, async (c) => {
+  // Keys are addressed by provider id. OpenAI is the only one registered so far (see KEY_PROVIDERS).
+  const knownProvider = (c: Context) => KEY_PROVIDERS.some((p) => p.id === c.req.param('provider'));
+  app.put('/api/settings/keys/:provider', requireAppHeader, async (c) => {
+    if (!knownProvider(c)) return c.json({ error: 'Unknown provider.' }, 404);
     const body = (await c.req.json()) as { apiKey?: unknown };
     return c.json(await providers.setKey(body.apiKey));
   });
-  app.delete('/api/settings/openai-key', requireAppHeader, (c) => c.json(providers.clearKey()));
+  app.delete('/api/settings/keys/:provider', requireAppHeader, (c) => (knownProvider(c) ? c.json(providers.clearKey()) : c.json({ error: 'Unknown provider.' }, 404)));
+
+  app.get('/api/profile', (c) => c.json(profile.get()));
+  app.put('/api/profile', requireAppHeader, async (c) => c.json(profile.set(await c.req.json())));
 
   // ---------- Boards ----------
 
@@ -101,17 +109,26 @@ export function createApp({ dataDir, provider = new SimulatedProvider(), provide
   app.get('/api/boards', (c) => {
     const rows = db
       .prepare(
-        `SELECT b.id, b.name, b.revision, b.updated_at, r.document FROM boards b
+        `SELECT b.id, b.name, b.revision, b.favorite, b.created_at, b.updated_at, r.document FROM boards b
          JOIN board_revisions r ON r.board_id = b.id AND r.revision = b.revision ORDER BY b.updated_at DESC`,
       )
       .all() as (BoardRow & { document: string })[];
-    const list: BoardSummary[] = rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      revision: r.revision,
-      updatedAt: r.updated_at,
-      nodeCount: (JSON.parse(r.document) as BoardDocument).nodes.length,
-    }));
+    const list: BoardSummary[] = rows.map((r) => {
+      const doc = JSON.parse(r.document) as BoardDocument;
+      return {
+        id: r.id,
+        name: r.name,
+        revision: r.revision,
+        favorite: Boolean(r.favorite),
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        nodeCount: doc.nodes.length,
+        preview: {
+          nodes: doc.nodes.slice(0, 60).map((n) => ({ id: n.id, x: n.position.x, y: n.position.y, type: n.type })),
+          edges: doc.edges.map((e) => ({ source: e.source, target: e.target })),
+        },
+      };
+    });
     return c.json(list);
   });
 
@@ -155,6 +172,42 @@ export function createApp({ dataDir, provider = new SimulatedProvider(), provide
     if (result.status === 404) return c.json({ error: 'Board not found.' }, 404);
     if (result.status === 409) return c.json({ error: 'This board was changed somewhere else (another tab?). Reload to get the latest version.', code: 'conflict', revision: result.revision }, 409);
     return c.json(boardPayload(id));
+  });
+
+  // Favoriting is not an edit: it changes neither the revision nor "last modified".
+  app.patch('/api/boards/:id', async (c) => {
+    const body = (await c.req.json()) as { favorite?: unknown };
+    if (typeof body.favorite !== 'boolean') return c.json({ error: 'Nothing to change.' }, 400);
+    const info = db.prepare('UPDATE boards SET favorite = ? WHERE id = ?').run(body.favorite ? 1 : 0, c.req.param('id'));
+    return info.changes ? c.json(boardPayload(c.req.param('id'))) : c.json({ error: 'Board not found.' }, 404);
+  });
+
+  // Copies the graph and the finished run history. Images are never copied: the duplicate points at the same image files.
+  app.post('/api/boards/:id/duplicate', (c) => {
+    const src = boardPayload(c.req.param('id'));
+    if (!src) return c.json({ error: 'Board not found.' }, 404);
+    const id = nanoid(10);
+    const now = Date.now();
+    const name = `${src.name} copy`.slice(0, 120);
+    tx(db, () => {
+      db.prepare('INSERT INTO boards (id, name, revision, created_at, updated_at) VALUES (?, ?, 1, ?, ?)').run(id, name, now, now);
+      db.prepare('INSERT INTO board_revisions (board_id, revision, name, document, created_at) VALUES (?, 1, ?, ?, ?)').run(id, name, JSON.stringify(src.document), now);
+      const runRows = db.prepare(`SELECT * FROM runs WHERE board_id = ? AND status NOT IN ('queued','running')`).all(src.id) as {
+        id: string; target_node_id: string | null; status: string; created_at: number; ended_at: number | null;
+      }[];
+      for (const r of runRows) {
+        const runId = nanoid(10);
+        db.prepare('INSERT INTO runs (id, board_id, revision, target_node_id, status, created_at, ended_at) VALUES (?, ?, 1, ?, ?, ?, ?)').run(runId, id, r.target_node_id, r.status, r.created_at, r.ended_at);
+        const execs = db.prepare('SELECT * FROM node_executions WHERE run_id = ?').all(r.id) as Record<string, string | number | null>[];
+        for (const e of execs) {
+          db.prepare(
+            `INSERT INTO node_executions (id, run_id, board_id, node_id, node_title, seq, status, error, error_category, request, output_ids, run_key, usage, started_at, ended_at, copied)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+          ).run(nanoid(10), runId, id, e.node_id, e.node_title, e.seq, e.status, e.error, e.error_category, e.request, e.output_ids, e.run_key, e.usage, e.started_at, e.ended_at);
+        }
+      }
+    });
+    return c.json(boardPayload(id), 201);
   });
 
   app.delete('/api/boards/:id', (c) => {

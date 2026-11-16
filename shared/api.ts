@@ -3,13 +3,41 @@ import type { ImageAsset } from './graph/types';
 
 /** Shapes exchanged between the app and the local server. */
 
+/** A tiny picture of a workflow's layout for gallery cards: node positions and links, no data. */
+export type BoardPreview = {
+  nodes: { id: string; x: number; y: number; type: string }[];
+  edges: { source: string; target: string }[];
+};
+
 export type BoardSummary = {
   id: string;
   name: string;
   revision: number;
   nodeCount: number;
+  favorite: boolean;
+  createdAt: number;
   updatedAt: number;
+  preview: BoardPreview;
 };
+
+/** Local profile, shown in the sidebar. Stored on this computer only. */
+export type Profile = {
+  name: string;
+  /** Small image as a data: URL, or null. */
+  picture: string | null;
+};
+
+/** AI providers that can hold an API key. Add an entry here (and a server provider) to support another. */
+export const KEY_PROVIDERS = [
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    purpose: 'Image generation',
+    placeholder: 'sk-...',
+    helpUrl: 'https://platform.openai.com/api-keys',
+  },
+] as const;
+export type KeyProviderId = (typeof KEY_PROVIDERS)[number]['id'];
 
 export type BoardPayload = {
   id: string;

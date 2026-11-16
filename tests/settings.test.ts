@@ -42,7 +42,7 @@ describe('account settings', () => {
 
   it('checks, saves and uses a key, and never returns it', async () => {
     make();
-    const res = await call('PUT', '/api/settings/openai-key', { apiKey: `  ${GOOD}  ` });
+    const res = await call('PUT', '/api/settings/keys/openai', { apiKey: `  ${GOOD}  ` });
     const text = await res.text();
     expect(res.status).toBe(200);
     expect(text).not.toContain(GOOD);
@@ -60,26 +60,26 @@ describe('account settings', () => {
 
   it('rejects a key OpenAI refuses, without saving it', async () => {
     make();
-    const res = await call('PUT', '/api/settings/openai-key', { apiKey: BAD });
+    const res = await call('PUT', '/api/settings/keys/openai', { apiKey: BAD });
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toMatch(/rejected this key/);
     expect(existsSync(join(dir, 'secrets.json'))).toBe(false);
-    expect((await call('PUT', '/api/settings/openai-key', { apiKey: 'not a key' })).status).toBe(400);
+    expect((await call('PUT', '/api/settings/keys/openai', { apiKey: 'not a key' })).status).toBe(400);
   });
 
   it('prefers a saved key over .env and falls back when it is removed', async () => {
     make('sk-from-env-000000000000000000env1');
     expect(((await (await call('GET', '/api/settings')).json()) as ProviderStatus).key).toMatchObject({ source: 'env', hint: 'sk-…env1' });
-    await call('PUT', '/api/settings/openai-key', { apiKey: GOOD });
-    const removed = (await (await call('DELETE', '/api/settings/openai-key')).json()) as ProviderStatus;
+    await call('PUT', '/api/settings/keys/openai', { apiKey: GOOD });
+    const removed = (await (await call('DELETE', '/api/settings/keys/openai')).json()) as ProviderStatus;
     expect(removed).toMatchObject({ provider: { id: 'openai' }, key: { source: 'env' } });
     expect(existsSync(join(dir, 'secrets.json'))).toBe(false);
   });
 
   it('refuses key changes from other sites', async () => {
     make();
-    expect((await call('PUT', '/api/settings/openai-key', { apiKey: GOOD }, {})).status).toBe(403);
-    expect((await call('PUT', '/api/settings/openai-key', { apiKey: GOOD }, { 'x-nodetrain-client': '1', origin: 'https://evil.example' })).status).toBe(403);
+    expect((await call('PUT', '/api/settings/keys/openai', { apiKey: GOOD }, {})).status).toBe(403);
+    expect((await call('PUT', '/api/settings/keys/openai', { apiKey: GOOD }, { 'x-nodetrain-client': '1', origin: 'https://evil.example' })).status).toBe(403);
     expect((await call('GET', '/api/settings', undefined, { host: 'evil.example' })).status).toBe(403);
     expect((await call('GET', '/api/settings', undefined, { origin: 'http://localhost:5173' })).status).toBe(200);
   });
