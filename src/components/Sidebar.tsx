@@ -5,6 +5,7 @@ import { CATALOG, NODE_KINDS } from '../../shared/graph/catalog';
 import type { NodeKind } from '../../shared/graph/types';
 import { TEMPLATES } from '../graph/templates';
 import { useBoard } from '../store/board';
+import { AccountButton } from './AccountSettings';
 import { DRAG_MIME } from './Canvas';
 import { NODE_ICONS } from './icons';
 
@@ -59,6 +60,7 @@ export const Sidebar = forwardRef<HTMLInputElement, { collapsed: boolean; onTogg
           <Logo />
           <ChevronRight size={16} />
         </button>
+        <AccountButton compact />
       </aside>
     );
   }
@@ -157,6 +159,9 @@ export const Sidebar = forwardRef<HTMLInputElement, { collapsed: boolean; onTogg
           ))}
         </div>
       )}
+      <div className="sidebar__footer">
+        <AccountButton />
+      </div>
     </aside>
   );
 });

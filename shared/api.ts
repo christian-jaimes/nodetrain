@@ -75,3 +75,13 @@ export type BoardRunState = {
 };
 
 export type ApiError = { error: string; code?: string };
+
+/** Which provider runs use and where its key comes from. Never includes the key itself. */
+export type ProviderStatus = {
+  provider: { id: string; label: string };
+  /** The key in use: saved from the app, or OPENAI_API_KEY from .env. Only a short hint is shared. */
+  key: { source: 'app' | 'env'; hint: string } | null;
+  envKeyPresent: boolean;
+  /** NODETRAIN_PROVIDER=simulated is set, so no model is called whatever the key. */
+  forcedSimulated: boolean;
+};

@@ -254,6 +254,7 @@ function WorkflowOverview() {
   const edges = useBoard((s) => s.edges);
   const select = useBoard((s) => s.select);
   const spend = useBoard((s) => s.spend);
+  const setSettingsOpen = useBoard((s) => s.setSettingsOpen);
   const issues = validateGraph(nodes, edges);
   return (
     <div className="insp-body">
@@ -275,8 +276,11 @@ function WorkflowOverview() {
       <span className="field-label">Image provider</span>
       {provider?.id === 'simulated' ? (
         <p className="provider-hint">
-          <strong>Simulated.</strong> No model is called and nothing is charged. To generate real images, copy <code>.env.example</code> to <code>.env</code>, add your
-          OpenAI API key, and restart <code>npm run dev</code>.
+          <strong>Simulated.</strong> No model is called and nothing is charged. To generate real images,{' '}
+          <button className="inline-link" onClick={() => setSettingsOpen(true)}>
+            add your OpenAI API key in Account settings
+          </button>
+          .
         </p>
       ) : (
         <p className="muted small">{provider ? `${provider.label}, using the API key on this computer.` : 'Unknown'}</p>

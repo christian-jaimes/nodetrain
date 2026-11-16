@@ -17,6 +17,8 @@ npm run dev
 
 Then open http://localhost:5173. `npm run dev` starts both the app and the local server (on port 8787, reachable only from your own machine).
 
+If the app says it **can't reach the NodeTrain server**, look at the terminal running `npm run dev`: the line starting with `[server]` says what went wrong. The most common causes are a Node.js older than 22.13 (`node -v` to check), a missing `npm install`, or another NodeTrain still running on port 8787.
+
 To run it without the dev tools, use `npm start` and open http://localhost:8787.
 
 Your data lives in `data/` next to the code: `nodetrain.db` (boards, every saved revision, run history) and `artifacts/` (every image, stored once by content). Back that folder up to keep your work. Set `NODETRAIN_DATA_DIR` to keep it somewhere else. If you used the step 1 prototype in this browser, its board is imported automatically the first time.
@@ -24,11 +26,12 @@ Your data lives in `data/` next to the code: `nodetrain.db` (boards, every saved
 ## Connect OpenAI
 
 1. Create an API key at https://platform.openai.com/api-keys. Image models may require a verified organization on your OpenAI account.
-2. In the `nodetrain` folder, copy `.env.example` to a new file named `.env` (Windows: `copy .env.example .env`, macOS/Linux: `cp .env.example .env`).
-3. Open `.env` and paste your key after `OPENAI_API_KEY=`.
-4. Restart `npm run dev`. The title bar shows **OpenAI** in green instead of **Simulated**.
+2. With `npm run dev` running, open **Account settings** at the bottom of the left sidebar (or click the **Simulated** badge in the title bar).
+3. Paste the key and press **Save key**. NodeTrain checks it with OpenAI, and the badge turns green: **OpenAI**. No restart needed.
 
-The key stays on your computer. Only the local server reads it, it is never sent to the browser or saved in a board, and `.env` is ignored by git so it can't be committed. **Every run is billed to your OpenAI account.** Each run's tokens and estimated cost appear in the Activity tab, and the workflow overview shows the estimated spend for this workflow and for today across all workflows. Estimates use OpenAI's published standard prices (checked 2026-11-16) and ignore cache discounts. Your [OpenAI usage page](https://platform.openai.com/usage) has the exact bill. Set `NODETRAIN_PROVIDER=simulated` in `.env` to go back to free simulated previews without removing the key.
+Prefer a file? Copy `.env.example` to `.env`, set `OPENAI_API_KEY=`, and restart `npm run dev`. A key saved in Account settings takes priority over `.env`; remove it there to fall back.
+
+The key stays on your computer. A key saved in the app is stored in `data/secrets.json`; only the local server reads it, it is never sent back to the browser (the app only sees a hint like `sk-…abcd`) or saved in a board, and both `data/` and `.env` are ignored by git so they can't be committed. The server only accepts requests from this computer's own pages. **Every run is billed to your OpenAI account.** Each run's tokens and estimated cost appear in the Activity tab, and the workflow overview shows the estimated spend for this workflow and for today across all workflows. Estimates use OpenAI's published standard prices (checked 2026-11-16) and ignore cache discounts. Your [OpenAI usage page](https://platform.openai.com/usage) has the exact bill. Set `NODETRAIN_PROVIDER=simulated` in `.env` to go back to free simulated previews without removing the key.
 
 | Model | Aspect ratios | Quality | Price per 1M tokens (text in / image in / image out) |
 | --- | --- | --- | --- |
