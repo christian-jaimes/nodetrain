@@ -9,7 +9,7 @@ export function AccountButton({ compact = false }: { compact?: boolean }) {
   const provider = useBoard((s) => s.provider);
   const setSettingsOpen = useBoard((s) => s.setSettingsOpen);
   const live = provider?.id === 'openai';
-  const status = live ? 'OpenAI connected' : 'No API key, simulated runs';
+  const status = live ? 'OpenAI connected' : 'Simulated, no key';
   if (compact) {
     return (
       <button className="icon-btn account-btn--compact" onClick={() => setSettingsOpen(true)} aria-label={`Account settings. ${status}`} title="Account settings">
