@@ -1,4 +1,4 @@
-import type { BoardPayload, BoardRunState, BoardSummary, RunView, SaveBoardRequest } from '../../shared/api';
+import type { BoardPayload, BoardRunState, BoardSummary, ProviderStatus, RunView, SaveBoardRequest } from '../../shared/api';
 import type { BoardDocument } from '../../shared/graph/document';
 import type { ImageAsset } from '../../shared/graph/types';
 
@@ -17,7 +17,7 @@ export class ApiError extends Error {
 /** Raised when the local server can't be reached at all. */
 export class OfflineError extends ApiError {
   constructor() {
-    super("Can't reach the NodeTrain server. Start it with `npm run dev`.", 0, 'offline');
+    super("Can't reach the NodeTrain server. Check the terminal running `npm run dev` for an error.", 0, 'offline');
   }
 }
 
@@ -52,5 +52,11 @@ export const api = {
   startRun: (boardId: string, revision: number, targetNodeId?: string) => request<RunView>('POST', `/api/boards/${boardId}/runs`, { revision, targetNodeId }),
   getRun: (id: string) => request<RunView>('GET', `/api/runs/${id}`),
   cancelRun: (id: string) => request<RunView>('POST', `/api/runs/${id}/cancel`),
+  settings: () => request<ProviderStatus>('GET', '/api/settings'),
+  // The header marks the request as coming from this app (see server/app.ts).
+  saveOpenAIKey: (apiKey: string) => request<ProviderStatus>('PUT', '/api/settings/openai-key', { apiKey }, { 'x-nodetrain-client': '1' }),
+  removeOpenAIKey: () => request<ProviderStatus>('DELETE', '/api/settings/openai-key', undefined, { 'x-nodetrain-client': '1' }),
   upload: (file: Blob, name: string) => request<ImageAsset>('POST', '/api/artifacts', file, { 'x-file-name': encodeURIComponent(name) }),
 };
+
+export const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Something went wrong.');

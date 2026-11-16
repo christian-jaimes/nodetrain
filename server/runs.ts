@@ -66,7 +66,8 @@ export class Orchestrator {
   constructor(
     private db: DB,
     private artifacts: ArtifactStore,
-    private provider: ImageProvider,
+    /** Read per node, so a key saved mid-session applies to the next run. */
+    private getProvider: () => ImageProvider,
   ) {}
 
   /** Runs that were in flight when the server stopped cannot resume a remote call, so mark them. */
@@ -303,13 +304,14 @@ export class Orchestrator {
   ) {
     const inputs = resolveInputs(node, nodes, edges as never, outputOf);
     const d = node.data;
+    const provider = this.getProvider();
     const request = {
       prompt: inputs.prompt,
       referenceIds: inputs.references.map((r) => r.id),
       model: d.model,
       aspectRatio: d.aspectRatio,
       quality: d.quality,
-      provider: this.provider.id,
+      provider: provider.id,
     };
     this.setExec(ex.id, { status: 'running', started_at: Date.now(), request: JSON.stringify(request) });
     try {
@@ -318,13 +320,13 @@ export class Orchestrator {
         if (!f) throw new ProviderError(`Reference image ${r.name} is missing from storage.`, 'invalid_input');
         return { id: r.id, path: f.path, mime: f.mime, width: r.width, height: r.height };
       });
-      const result = await this.provider.generateImage({ prompt: inputs.prompt, references, model: d.model, aspectRatio: d.aspectRatio, quality: d.quality, signal });
+      const result = await provider.generateImage({ prompt: inputs.prompt, references, model: d.model, aspectRatio: d.aspectRatio, quality: d.quality, signal });
       const assets: ImageAsset[] = [];
       for (const [i, img] of result.images.entries()) {
         assets.push(
           await this.artifacts.save(img.data, {
             name: `${d.title.replace(/[^\w-]+/g, '-').toLowerCase()}-${runId}-${i + 1}.${img.mime.split('/')[1]}`,
-            provider: this.provider.id,
+            provider: provider.id,
             runId,
             provenance: { runId, nodeId: node.id, ...request, usage: result.usage },
           }),

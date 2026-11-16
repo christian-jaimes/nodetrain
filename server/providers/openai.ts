@@ -65,6 +65,21 @@ export class OpenAIProvider implements ImageProvider {
     return { models: IMAGE_MODEL_LIST.map((m) => m.id), maxReferences: 16, aspectRatios: ASPECT_RATIOS, qualities: ALL_QUALITIES };
   }
 
+  /** Cheap check that OpenAI accepts the key (lists models; nothing is billed). */
+  async verifyKey() {
+    let res: Response;
+    try {
+      res = await this.fetch(`${this.baseUrl}/models`, { headers: { Authorization: `Bearer ${this.opts.apiKey}` }, signal: AbortSignal.timeout(20_000) });
+    } catch (err) {
+      throw new ProviderError(`Couldn't reach OpenAI to check the key (${err instanceof Error ? err.message : 'network error'}). Check your internet connection and try again.`, 'transient', true);
+    }
+    if (res.ok) return;
+    const body = (await res.json().catch(() => ({}))) as OpenAIErrorBody;
+    if (res.status === 401) throw new ProviderError('OpenAI rejected this key. Copy it again from platform.openai.com/api-keys; it may have been revoked or mistyped.', 'auth');
+    if (res.status === 403) throw new ProviderError(`OpenAI says this key isn't allowed to do that. ${body.error?.message ?? ''}`.trim(), 'auth');
+    throw new ProviderError(`OpenAI couldn't check the key right now (${res.status}). Try again in a minute.`, 'outage', true);
+  }
+
   async generateImage(req: ImageGenerationRequest): Promise<ImageGenerationResult> {
     const model = getModel(req.model);
     const size = apiSize(req.model, req.aspectRatio);

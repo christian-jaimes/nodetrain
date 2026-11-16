@@ -7,7 +7,7 @@ import { CATALOG, getPort } from '../../shared/graph/catalog';
 import { fromDocument, migrateDocument, toDocument } from '../../shared/graph/document';
 import { checkConnection, planRun, type CheckResult, type ConnectionLike } from '../../shared/graph/validate';
 import { RUN_FIELDS, type AppEdge, type AppNode, type ImageAsset, type ImageGenerationData, type NodeData, type NodeKind } from '../../shared/graph/types';
-import { ApiError, OfflineError, api } from '../lib/api';
+import { ApiError, OfflineError, api, errorText } from '../lib/api';
 import { uploadDataUrl } from '../lib/images';
 import type { Template } from '../graph/templates';
 
@@ -47,6 +47,7 @@ type BoardState = {
   offline: boolean;
   showStart: boolean;
   templatesOpen: boolean;
+  settingsOpen: boolean;
   busy: string | null;
   saveState: SaveState;
   saveError: string | null;
@@ -78,6 +79,9 @@ type BoardState = {
   refreshBoards: () => Promise<void>;
   setShowStart: (v: boolean) => void;
   setTemplatesOpen: (v: boolean) => void;
+  setSettingsOpen: (v: boolean) => void;
+  /** Re-reads which provider the server uses, after the key changes. */
+  setProvider: (p: { id: string; label: string }) => void;
   setPicker: (p: PickerState | null) => void;
   notify: (text: string, tone?: Toast['tone']) => void;
   init: () => Promise<void>;
@@ -132,7 +136,6 @@ function hydrate(nodes: AppNode[], state: BoardRunState): AppNode[] {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const errorText = (err: unknown) => (err instanceof Error ? err.message : 'Something went wrong.');
 
 // Autosave bookkeeping lives outside React state.
 let lastSavedJson = '';
@@ -298,6 +301,7 @@ export const useBoard = create<BoardState>((set, get) => {
     offline: false,
     showStart: false,
     templatesOpen: false,
+    settingsOpen: false,
     busy: null,
     saveState: 'idle',
     saveError: null,
@@ -512,6 +516,8 @@ export const useBoard = create<BoardState>((set, get) => {
 
     setShowStart: (v) => set({ showStart: v }),
     setTemplatesOpen: (v) => set({ templatesOpen: v }),
+    setSettingsOpen: (v) => set({ settingsOpen: v }),
+    setProvider: (p) => set({ provider: p }),
     setPicker: (p) => set({ picker: p }),
 
     notify: (text, tone = 'info') => {

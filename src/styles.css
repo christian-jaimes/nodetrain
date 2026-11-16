@@ -1508,3 +1508,167 @@ button:disabled {
   text-decoration-color: var(--accent-hover);
   text-underline-offset: 2px;
 }
+
+/* ---------- Account ---------- */
+.sidebar--collapsed {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+.sidebar__footer {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin: 0 -2px;
+}
+.account-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--radius-field);
+  color: var(--text-2);
+  text-align: left;
+}
+.account-btn:hover {
+  background: var(--field-hover);
+  color: var(--text);
+}
+.account-btn__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  flex: none;
+}
+.account-btn__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.account-btn__text strong {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.account-btn__text small {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account-btn__text small i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: currentColor;
+}
+.account-btn__text .is-ok {
+  color: var(--ok);
+}
+.account-btn__text .is-warn {
+  color: var(--warn);
+}
+.modal--narrow {
+  width: min(560px, 100%);
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.settings-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+}
+.settings-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: var(--radius-field);
+}
+.settings-status svg {
+  flex: none;
+  margin-top: 2px;
+}
+.settings-status--ok {
+  color: var(--text);
+  background: rgba(74, 222, 128, 0.07);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+.settings-status--ok svg {
+  color: var(--ok);
+}
+.settings-status--warn {
+  color: var(--text);
+  background: rgba(251, 191, 36, 0.07);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+.settings-status--warn svg {
+  color: var(--warn);
+}
+.settings-status code,
+.settings-form code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0 5px;
+  border-radius: 4px;
+}
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-form__row {
+  display: flex;
+  gap: 8px;
+}
+.settings-form__row .nt-input {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.settings-form a {
+  color: var(--text);
+  text-decoration-color: var(--accent-hover);
+  text-underline-offset: 2px;
+}
+.settings-error {
+  margin: 0;
+  color: var(--err);
+  font-size: 13px;
+}
+.secondary-btn--danger {
+  align-self: flex-start;
+  color: var(--err);
+}
+button.provider-pill {
+  font-family: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.inline-link {
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--accent-hover);
+  text-underline-offset: 2px;
+}

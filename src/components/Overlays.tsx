@@ -14,6 +14,7 @@ export function TitleBar() {
   const provider = useBoard((s) => s.provider);
   const newBlank = useBoard((s) => s.newBlank);
   const setTemplatesOpen = useBoard((s) => s.setTemplatesOpen);
+  const setSettingsOpen = useBoard((s) => s.setSettingsOpen);
   const [editing, setEditing] = useState(false);
   const [menu, setMenu] = useState(false);
   const [draft, setDraft] = useState(name);
@@ -57,12 +58,13 @@ export function TitleBar() {
         ) : null}
       </span>
       {provider ? (
-        <span
+        <button
           className={`provider-pill provider-pill--${provider.id}`}
-          title={provider.id === 'simulated' ? 'No model is called. Add OPENAI_API_KEY to a .env file and restart the server to generate real images.' : 'Images are generated with your OpenAI API key.'}
+          onClick={() => setSettingsOpen(true)}
+          title={provider.id === 'simulated' ? 'No model is called. Add your OpenAI API key in Account settings to generate real images.' : 'Images are generated with your OpenAI API key. Click to manage it.'}
         >
           {provider.id === 'simulated' ? 'Simulated' : provider.label}
-        </span>
+        </button>
       ) : null}
       {menu ? (
         <>
@@ -293,7 +295,7 @@ export function ServerBanner() {
       <div className="banner" role="alert">
         <CloudOff size={18} />
         <span>
-          Can't reach the NodeTrain server, so changes aren't being saved. Start it with <code>npm run dev</code>.
+          Can't reach the NodeTrain server, so changes aren't being saved. Make sure <code>npm run dev</code> is running, and check its terminal window for an error.
         </span>
         <button className="secondary-btn secondary-btn--sm" onClick={() => (boardId ? void save().catch(() => {}) : void init())}>
           Retry

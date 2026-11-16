@@ -1,5 +1,6 @@
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useEffect, useRef, useState } from 'react';
+import { AccountSettings } from './components/AccountSettings';
 import { Canvas } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { Busy, HintBar, NodePicker, ServerBanner, StartScreen, TemplatesModal, TitleBar, Toast, ZoomControls } from './components/Overlays';
@@ -17,6 +18,7 @@ function Workspace() {
   const showStart = useBoard((s) => s.showStart);
   const empty = useBoard((s) => s.nodes.length === 0);
   const templatesOpen = useBoard((s) => s.templatesOpen);
+  const settingsOpen = useBoard((s) => s.settingsOpen);
   const [collapsed, setCollapsed] = useState(false);
   const [tab, setTab] = useState<'properties' | 'activity'>('properties');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -74,6 +76,7 @@ function Workspace() {
       {!starting ? <ZoomControls /> : null}
       <NodePicker />
       {templatesOpen ? <TemplatesModal /> : null}
+      {settingsOpen ? <AccountSettings /> : null}
       <Toast />
       <ServerBanner />
       <Busy />

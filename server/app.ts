@@ -8,11 +8,29 @@ import type { BoardPayload, BoardSummary, SaveBoardRequest } from '../shared/api
 import { DocumentError, migrateDocument, type BoardDocument } from '../shared/graph/document';
 import { ArtifactError, ArtifactStore, MAX_UPLOAD_BYTES } from './artifacts';
 import { openDatabase, tx, type DB } from './db';
+import { ProviderManager } from './providers/manager';
 import { SimulatedProvider } from './providers/simulated';
-import type { ImageProvider } from './providers/types';
+import { ProviderError, type ImageProvider } from './providers/types';
 import { Orchestrator, RunError } from './runs';
 
-export type AppOptions = { dataDir: string; provider?: ImageProvider };
+export type AppOptions = {
+  dataDir: string;
+  /** Fixed provider (tests). Ignored when `providers` is given. */
+  provider?: ImageProvider;
+  /** Switchable provider with key management (the real server). */
+  providers?: (dataDir: string) => ProviderManager;
+};
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+function hostnameOf(value: string | undefined) {
+  if (!value) return undefined;
+  try {
+    return new URL(value.includes('://') ? value : `http://${value}`).hostname;
+  } catch {
+    return '';
+  }
+}
 
 type BoardRow = { id: string; name: string; revision: number; created_at: number; updated_at: number };
 
@@ -22,11 +40,12 @@ function cleanName(name: unknown) {
   return typeof name === 'string' && name.trim() ? name.trim().slice(0, 120) : 'Untitled workflow';
 }
 
-export function createApp({ dataDir, provider = new SimulatedProvider() }: AppOptions) {
+export function createApp({ dataDir, provider = new SimulatedProvider(), providers: makeProviders }: AppOptions) {
   mkdirSync(dataDir, { recursive: true });
   const db: DB = openDatabase(join(dataDir, 'nodetrain.db'));
   const artifacts = new ArtifactStore(db, dataDir);
-  const runs = new Orchestrator(db, artifacts, provider);
+  const providers = makeProviders ? makeProviders(dataDir) : ProviderManager.fixed(dataDir, provider);
+  const runs = new Orchestrator(db, artifacts, () => providers.current());
   runs.recoverInterrupted();
 
   const app = new Hono();
@@ -34,19 +53,41 @@ export function createApp({ dataDir, provider = new SimulatedProvider() }: AppOp
   app.onError((err, c) => {
     if (err instanceof ArtifactError || err instanceof RunError) return c.json({ error: err.message }, err.status);
     if (err instanceof DocumentError) return c.json({ error: err.message, code: 'invalid_document' }, 400);
+    if (err instanceof ProviderError) return c.json({ error: err.message, code: err.category }, err.category === 'transient' || err.category === 'outage' ? 502 : 400);
     if (err instanceof SyntaxError) return c.json({ error: 'Request body is not valid JSON.' }, 400);
     console.error(err);
     return c.json({ error: 'Something went wrong on the NodeTrain server.' }, 500);
   });
 
   app.use('/api/*', async (c, next) => {
+    // Only this computer's own pages may talk to the server. Blocks DNS rebinding and other sites posting to localhost.
+    const host = hostnameOf(c.req.header('host'));
+    const origin = c.req.header('origin');
+    if ((host && !LOCAL_HOSTS.has(host)) || (origin && !LOCAL_HOSTS.has(hostnameOf(origin) ?? ''))) return c.json({ error: 'Forbidden.' }, 403);
     await next();
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Cache-Control', c.res.headers.get('Cache-Control') ?? 'no-store');
   });
 
   // Never includes credentials: only which provider is active and what it supports.
-  app.get('/api/health', (c) => c.json({ ok: true, provider: { id: provider.id, label: provider.label, ...provider.capabilities() } }));
+  app.get('/api/health', (c) => {
+    const p = providers.current();
+    return c.json({ ok: true, provider: { id: p.id, label: p.label, ...p.capabilities() } });
+  });
+
+  // ---------- Settings ----------
+
+  app.get('/api/settings', (c) => c.json(providers.status()));
+  // The custom header can't be sent cross-site without a CORS preflight, which this server never grants.
+  const requireAppHeader = async (c: Context, next: () => Promise<void>) => {
+    if (c.req.header('x-nodetrain-client') !== '1') return c.json({ error: 'Forbidden.' }, 403);
+    await next();
+  };
+  app.put('/api/settings/openai-key', requireAppHeader, async (c) => {
+    const body = (await c.req.json()) as { apiKey?: unknown };
+    return c.json(await providers.setKey(body.apiKey));
+  });
+  app.delete('/api/settings/openai-key', requireAppHeader, (c) => c.json(providers.clearKey()));
 
   // ---------- Boards ----------
 
@@ -155,5 +196,5 @@ export function createApp({ dataDir, provider = new SimulatedProvider() }: AppOp
 
   app.all('/api/*', (c) => c.json({ error: 'Not found.' }, 404));
 
-  return { app, db, runs, artifacts, close: () => db.close() };
+  return { app, db, runs, artifacts, providers, close: () => db.close() };
 }
