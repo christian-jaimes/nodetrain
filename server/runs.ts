@@ -22,6 +22,7 @@ type ExecRow = {
   output_ids: string;
   run_key: string | null;
   usage: string | null;
+  copied: number;
   started_at: number | null;
   ended_at: number | null;
 };
@@ -130,7 +131,8 @@ export class Orchestrator {
     let boardSpend = 0;
     for (const row of rows) {
       const view = this.execView(row);
-      boardSpend += view.costUsd ?? 0;
+      // History copied into a duplicate was paid for on the original board.
+      if (!row.copied) boardSpend += view.costUsd ?? 0;
       if (!latest[row.node_id]) latest[row.node_id] = view;
       if (row.status === 'succeeded') {
         (outputs[row.node_id] ??= []).push(...view.outputs);
@@ -146,7 +148,7 @@ export class Orchestrator {
 
   /** Estimated spend across all boards since a time. Board deletion keeps run history, so this includes deleted boards. */
   private spendSince(since: number) {
-    const rows = this.db.prepare(`SELECT request, usage FROM node_executions WHERE usage IS NOT NULL AND request IS NOT NULL AND ended_at >= ?`).all(since) as Pick<ExecRow, 'request' | 'usage'>[];
+    const rows = this.db.prepare(`SELECT request, usage FROM node_executions WHERE copied = 0 AND usage IS NOT NULL AND request IS NOT NULL AND ended_at >= ?`).all(since) as Pick<ExecRow, 'request' | 'usage'>[];
     let total = 0;
     for (const r of rows) total += estimateCost((JSON.parse(r.request!) as { model: string }).model, JSON.parse(r.usage!)) ?? 0;
     return total;

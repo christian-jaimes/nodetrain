@@ -87,3 +87,23 @@ export function sampleBottle(): { dataUrl: string; name: string } {
   ctx.fillRect(cx - 90, 220, 18, 150);
   return { dataUrl: c.toDataURL('image/png'), name: 'serum-bottle.png' };
 }
+
+/** Crops an image file to a centred square and shrinks it, for a profile picture (a small JPEG data URL). */
+export async function pictureFromFile(file: File, size = 192): Promise<string> {
+  if (!file.type.startsWith('image/')) throw new Error('Choose an image file.');
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    throw new Error("That image couldn't be read. Try a PNG or JPEG.");
+  }
+  const side = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#1c1c21';
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
+  bitmap.close();
+  return canvas.toDataURL('image/jpeg', 0.88);
+}
