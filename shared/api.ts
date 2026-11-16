@@ -43,6 +43,8 @@ export type NodeExecutionView = {
   runKey?: string;
   /** Token usage as reported by the provider, when it reports it. */
   usage?: Record<string, number>;
+  /** Estimated USD from usage and the model's published token prices. */
+  costUsd?: number;
   startedAt?: number;
   endedAt?: number;
 };
@@ -68,6 +70,8 @@ export type BoardRunState = {
   lastSucceeded: Record<string, { runKey?: string; endedAt?: number }>;
   activeRunId: string | null;
   activity: NodeExecutionView[];
+  /** Estimated USD: everything run on this board, and all boards since local midnight. */
+  spend: { board: number; today: number };
 };
 
 export type ApiError = { error: string; code?: string };

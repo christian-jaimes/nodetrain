@@ -28,7 +28,7 @@ const fail = (status: number, code: string, message = 'nope') => () =>
 const req = (patch: Partial<ImageGenerationRequest> = {}): ImageGenerationRequest => ({
   prompt: 'a red bottle',
   references: [],
-  model: 'gpt-image-2',
+  model: 'gpt-image-2.5-flare',
   aspectRatio: '16:9',
   quality: 'High',
   signal: new AbortController().signal,
@@ -43,7 +43,7 @@ describe('OpenAIProvider', () => {
     const res = await provider(fn).generateImage(req());
     expect(calls[0].url).toBe('https://api.openai.com/v1/images/generations');
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test');
-    expect(JSON.parse(calls[0].init.body as string)).toMatchObject({ model: 'gpt-image-2', prompt: 'a red bottle', size: '1536x864', quality: 'high', n: 1 });
+    expect(JSON.parse(calls[0].init.body as string)).toMatchObject({ model: 'gpt-image-2.5-flare', prompt: 'a red bottle', size: '1536x864', quality: 'high', n: 1 });
     expect(res.images[0].data.equals(PNG)).toBe(true);
     expect(res.usage).toEqual({ inputTokens: 10, outputTokens: 200, totalTokens: 210, inputTextTokens: 10, inputImageTokens: 0 });
   });

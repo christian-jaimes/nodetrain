@@ -24,14 +24,14 @@ export function NodeShell({
 }) {
   return (
     <div className={`nt-node ${selected ? 'is-selected' : ''}`} style={{ width }}>
-      <header className="nt-node__header">
+      <div className="nt-node__header">
         <NodeIconTile kind={kind} />
         <div className="nt-node__titles">
           <div className="nt-node__title">{title}</div>
           <div className="nt-node__subtitle">{CATALOG[kind].label}</div>
         </div>
         {action}
-      </header>
+      </div>
       {status}
       <div className="nt-node__body">{children}</div>
     </div>
@@ -47,6 +47,7 @@ export function Port({ port, side, style }: { port: PortDef; side: 'in' | 'out';
       position={side === 'in' ? Position.Left : Position.Right}
       className={`nt-port nt-port--${port.type}`}
       style={style}
+      role="img"
       title={`${port.label} · ${PORT_TYPE_LABEL[port.type]}${port.multi ? ' (accepts several)' : ''}`}
       aria-label={`${side === 'in' ? 'Input' : 'Output'}: ${port.label}, type ${PORT_TYPE_LABEL[port.type]}`}
     />

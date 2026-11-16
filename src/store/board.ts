@@ -39,6 +39,8 @@ type BoardState = {
   lastCommit: { key: string; at: number } | null;
   clipboard: { nodes: AppNode[]; edges: AppEdge[] } | null;
   activity: NodeExecutionView[];
+  /** Estimated spend, from BoardRunState. */
+  spend: BoardRunState['spend'];
   activeRunId: string | null;
   running: boolean;
   loaded: boolean;
@@ -214,7 +216,7 @@ export const useBoard = create<BoardState>((set, get) => {
         if (run.status !== 'queued' && run.status !== 'running') {
           set({ running: false, activeRunId: null });
           const boardId = get().boardId;
-          if (boardId) api.boardState(boardId).then((st) => set({ activity: st.activity }), () => {});
+          if (boardId) api.boardState(boardId).then((st) => set({ activity: st.activity, spend: st.spend }), () => {});
           if (run.status === 'canceled') get().notify('Run canceled.');
           return;
         }
@@ -243,6 +245,7 @@ export const useBoard = create<BoardState>((set, get) => {
       future: [],
       lastCommit: null,
       activity: state.activity,
+      spend: state.spend,
       activeRunId: state.activeRunId,
       running: false,
       showStart: showStart && nodes.length === 0,
@@ -288,6 +291,7 @@ export const useBoard = create<BoardState>((set, get) => {
     lastCommit: null,
     clipboard: null,
     activity: [],
+    spend: { board: 0, today: 0 },
     activeRunId: null,
     running: false,
     loaded: false,
@@ -462,7 +466,7 @@ export const useBoard = create<BoardState>((set, get) => {
           cur.boardId && cur.nodes.length === 0
             ? await api.saveBoard(cur.boardId, { name: built.name, baseRevision: cur.revision, document: doc })
             : await api.createBoard(built.name, doc);
-        showBoard(board, { outputs: {}, latest: {}, lastSucceeded: {}, activeRunId: null, activity: [] });
+        showBoard(board, { outputs: {}, latest: {}, lastSucceeded: {}, activeRunId: null, activity: [], spend: { board: 0, today: 0 } });
         set({ templatesOpen: false });
         void get().refreshBoards();
       } catch (err) {
@@ -480,7 +484,7 @@ export const useBoard = create<BoardState>((set, get) => {
           return;
         }
         const board = await api.createBoard('Untitled workflow');
-        showBoard(board, { outputs: {}, latest: {}, lastSucceeded: {}, activeRunId: null, activity: [] }, true);
+        showBoard(board, { outputs: {}, latest: {}, lastSucceeded: {}, activeRunId: null, activity: [], spend: { board: 0, today: 0 } }, true);
         void get().refreshBoards();
       } catch (err) {
         get().notify(errorText(err), 'error');

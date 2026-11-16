@@ -3,6 +3,7 @@ import { ChevronDown, Download, History, Play, Redo2, Scan, Square, Trash2, Undo
 import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CATALOG } from '../../shared/graph/catalog';
+import { formatUsd } from '../../shared/graph/models';
 import { FIT_OPTIONS } from '../lib/ui';
 import type { AppNode, ImageGenerationNode as GenNode } from '../../shared/graph/types';
 import { selectedOutput, validateGraph } from '../../shared/graph/validate';
@@ -52,8 +53,9 @@ export function Toolbar({ onShowActivity }: { onShowActivity: () => void }) {
   );
 }
 
-function formatTokens(u: Record<string, number>) {
+function formatTokens(u: Record<string, number>, cost?: number) {
   const parts = [`${u.totalTokens.toLocaleString()} tokens`];
+  if (cost !== undefined) parts.unshift(`≈ ${formatUsd(cost)}`);
   if (u.inputTokens !== undefined) parts.push(`${u.inputTokens.toLocaleString()} in`);
   if (u.outputTokens !== undefined) parts.push(`${u.outputTokens.toLocaleString()} out`);
   return parts.join(' · ');
@@ -93,7 +95,7 @@ function ActivityList({ entries }: { entries: NodeExecutionView[] }) {
           ) : null}
           {a.usage?.totalTokens ? (
             <div className="activity__run">
-              {formatTokens(a.usage)}
+              {formatTokens(a.usage, a.costUsd)}
             </div>
           ) : null}
           <div className="activity__run">
@@ -112,11 +114,17 @@ function GenerationProps({ node }: { node: GenNode }) {
   const [open, setOpen] = useState(true);
   const out = selectedOutput(node);
   const d = node.data;
+  const lastCost = useBoard((s) => s.activity.find((a) => a.nodeId === node.id && a.costUsd !== undefined)?.costUsd);
   return (
     <>
       <div className="insp-status">
         <StatusChip status={status} />
-        {d.lastRunAt ? <span className="muted small">Last run {new Date(d.lastRunAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> : null}
+        {d.lastRunAt ? (
+          <span className="muted small">
+            Last run {new Date(d.lastRunAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {lastCost !== undefined ? ` · ≈ ${formatUsd(lastCost)}` : ''}
+          </span>
+        ) : null}
       </div>
       <div className="field">
         <span className="field-label">Prompt sent to the model</span>
@@ -145,7 +153,7 @@ function GenerationProps({ node }: { node: GenNode }) {
             <a href={out.src} target="_blank" rel="noreferrer" title="Open full size">
               <img className="insp-output" src={out.src} alt="Selected output" />
             </a>
-            {out.provider === 'simulated' ? <p className="muted small">Simulated preview. Real generation arrives in step 3.</p> : null}
+            {out.provider === 'simulated' ? <p className="muted small">Simulated preview, no model was called. Add an OpenAI API key to generate real images.</p> : null}
             <div className="insp-output-meta">
               <span>
                 {out.width}×{out.height} · {d.model} · {new Date(out.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -245,6 +253,7 @@ function WorkflowOverview() {
   const nodes = useBoard((s) => s.nodes);
   const edges = useBoard((s) => s.edges);
   const select = useBoard((s) => s.select);
+  const spend = useBoard((s) => s.spend);
   const issues = validateGraph(nodes, edges);
   return (
     <div className="insp-body">
@@ -272,6 +281,24 @@ function WorkflowOverview() {
       ) : (
         <p className="muted small">{provider ? `${provider.label}, using the API key on this computer.` : 'Unknown'}</p>
       )}
+      <span className="field-label">Estimated spend</span>
+      <dl className="stats stats--two">
+        <div>
+          <dt>This workflow</dt>
+          <dd>{formatUsd(spend.board)}</dd>
+        </div>
+        <div>
+          <dt>Today, all workflows</dt>
+          <dd>{formatUsd(spend.today)}</dd>
+        </div>
+      </dl>
+      <p className="muted small">
+        Worked out from the tokens OpenAI reports and its published prices. Your{' '}
+        <a href="https://platform.openai.com/usage" target="_blank" rel="noreferrer">
+          OpenAI usage page
+        </a>{' '}
+        has the exact bill.
+      </p>
       <span className="field-label">Before you run</span>
       {issues.length ? (
         <ul className="issues">
@@ -315,15 +342,15 @@ export function Inspector({ tab, setTab }: { tab: 'properties' | 'activity'; set
             </div>
           )}
         </div>
-        <div className="tabs" role="tablist">
-          <button role="tab" aria-selected={tab === 'properties'} className={tab === 'properties' ? 'is-active' : ''} onClick={() => setTab('properties')}>
+        <div className="tabs" role="tablist" aria-label="Inspector sections">
+          <button role="tab" id="tab-properties" aria-controls="insp-panel" aria-selected={tab === 'properties'} className={tab === 'properties' ? 'is-active' : ''} onClick={() => setTab('properties')}>
             Properties
           </button>
-          <button role="tab" aria-selected={tab === 'activity'} className={tab === 'activity' ? 'is-active' : ''} onClick={() => setTab('activity')}>
+          <button role="tab" id="tab-activity" aria-controls="insp-panel" aria-selected={tab === 'activity'} className={tab === 'activity' ? 'is-active' : ''} onClick={() => setTab('activity')}>
             Activity
           </button>
         </div>
-        <div className="inspector__scroll">
+        <div className="inspector__scroll" id="insp-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
           {tab === 'activity' ? (
             <div className="insp-body">
               <ActivityList entries={entries} />

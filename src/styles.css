@@ -12,6 +12,9 @@
   --text-3: #8a8a95;
   --accent: #f2293a;
   --accent-hover: #ff4252;
+  /* Fill for white text: keeps 4.5:1 contrast. */
+  --accent-fill: #e11d2e;
+  --accent-fill-hover: #c91728;
   --accent-soft: rgba(242, 41, 58, 0.14);
   --accent-deep: #6e1820;
   --port-text: #b892ff;
@@ -201,7 +204,7 @@ button:disabled {
   color: var(--text-2);
 }
 .search:focus-within {
-  border-color: var(--border-strong);
+  border-color: var(--accent-hover);
 }
 .search input {
   flex: 1;
@@ -656,13 +659,13 @@ button:disabled {
   gap: 8px;
   padding: 10px 16px;
   border-radius: 11px;
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #fff;
   font-weight: 600;
   white-space: nowrap;
 }
 .primary-btn:hover {
-  background: var(--accent-hover);
+  background: var(--accent-fill-hover);
 }
 .primary-btn--ghost {
   background: var(--field);
@@ -732,8 +735,10 @@ button:disabled {
 .nt-input:focus,
 .nt-textarea:focus,
 .nt-select:focus {
-  border-color: var(--border-strong);
-  background: var(--field-hover);
+  /* background-color only: the shorthand would drop the select's chevron. */
+  border-color: var(--accent-hover);
+  background-color: var(--field-hover);
+  outline: none;
 }
 .nt-select {
   appearance: none;
@@ -1483,4 +1488,23 @@ button:disabled {
   background: rgba(255, 255, 255, 0.08);
   padding: 0 5px;
   border-radius: 4px;
+}
+
+.node-warning--soft {
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--border-strong);
+}
+.stats--two {
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: -6px;
+}
+.stats--two dd {
+  font-size: 17px;
+}
+
+.insp-body a:not(.link-btn) {
+  color: var(--text);
+  text-decoration-color: var(--accent-hover);
+  text-underline-offset: 2px;
 }

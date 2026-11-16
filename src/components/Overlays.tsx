@@ -19,7 +19,7 @@ export function TitleBar() {
   const [draft, setDraft] = useState(name);
 
   return (
-    <div className="titlebar">
+    <header className="titlebar">
       {editing ? (
         <input
           className="titlebar__input"
@@ -99,7 +99,7 @@ export function TitleBar() {
           </div>
         </>
       ) : null}
-    </div>
+    </header>
   );
 }
 
@@ -107,7 +107,7 @@ export function StartScreen() {
   const setShowStart = useBoard((s) => s.setShowStart);
   const setTemplatesOpen = useBoard((s) => s.setTemplatesOpen);
   return (
-    <div className="start">
+    <main className="start">
       <h1>Create your workflow</h1>
       <p>Start from a blank canvas or use a template to build faster.</p>
       <div className="start__cards">
@@ -132,7 +132,7 @@ export function StartScreen() {
           <ArrowRight size={20} />
         </button>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -151,7 +151,7 @@ export function TemplatesModal() {
   return (
     <div className="modal-backdrop" onClick={() => setTemplatesOpen(false)}>
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="tpl-title" onClick={(e) => e.stopPropagation()}>
-        <header className="modal__head">
+        <div className="modal__head">
           <span className="start-card__icon">
             <Layers size={26} />
           </span>
@@ -162,7 +162,7 @@ export function TemplatesModal() {
           <button className="icon-btn" onClick={() => setTemplatesOpen(false)} aria-label="Close">
             <X size={20} />
           </button>
-        </header>
+        </div>
         <label className="search search--wide">
           <Search size={16} aria-hidden />
           <input autoFocus placeholder="Search templates..." value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search templates" />
@@ -339,7 +339,7 @@ export function Toast() {
 
 export function HintBar() {
   return (
-    <div className="hintbar">
+    <div className="hintbar" role="region" aria-label="Canvas tips">
       <MousePointer2 size={15} /> Double-click to create node <span>·</span> Drag from a port to connect <span>·</span> Pinch to zoom
     </div>
   );

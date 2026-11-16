@@ -54,7 +54,10 @@ export function Canvas() {
       const tgt = byId.get(e.target);
       const type = src ? getPort(src.type as NodeKind, 'source', e.sourceHandle)?.type : undefined;
       const running = tgt?.type === 'imageGeneration' && tgt.data.status === 'running';
-      return { ...e, className: `edge--${type ?? 'unknown'}`, animated: running } as Edge;
+      const into = tgt ? getPort(tgt.type as NodeKind, 'target', e.targetHandle)?.label : undefined;
+      // Screen readers announce edges; name them by node titles rather than ids.
+      const ariaLabel = `Connection from ${src?.data.title ?? 'a node'} to ${tgt?.data.title ?? 'a node'}${into ? `, ${into}` : ''}`;
+      return { ...e, className: `edge--${type ?? 'unknown'}`, animated: running, ariaLabel } as Edge;
     });
   }, [nodes, rawEdges]);
 
