@@ -1,4 +1,5 @@
 import { CATALOG } from './catalog';
+import { RETIRED_MODELS } from './models';
 import { RUN_FIELDS, type AppEdge, type AppNode, type NodeKind } from './types';
 
 /**
@@ -12,8 +13,30 @@ export const DOC_VERSION = 1;
 export const NODE_TYPE_VERSIONS: Record<NodeKind, number> = {
   prompt: 1,
   imageInput: 1,
-  imageGeneration: 1,
+  imageGeneration: 2,
 };
+
+/**
+ * Per node type upgrades, keyed by the version they upgrade from.
+ * imageGeneration v1 -> v2: retired models are replaced (gpt-image-1 shut down 2026-10-23).
+ */
+const NODE_MIGRATIONS: Partial<Record<NodeKind, Record<number, (data: Record<string, unknown>) => Record<string, unknown>>>> = {
+  imageGeneration: {
+    1: (d) => (typeof d.model === 'string' && RETIRED_MODELS[d.model] ? { ...d, model: RETIRED_MODELS[d.model] } : d),
+  },
+};
+
+function upgradeNode(type: NodeKind, version: number, data: Record<string, unknown>) {
+  const target = NODE_TYPE_VERSIONS[type] ?? version;
+  let v = version;
+  let d = data;
+  while (v < target) {
+    const step = NODE_MIGRATIONS[type]?.[v];
+    if (step) d = step(d);
+    v++;
+  }
+  return { typeVersion: Math.max(v, version), data: d };
+}
 
 export type SavedNode = {
   id: string;
@@ -113,13 +136,16 @@ export function migrateDocument(input: unknown): BoardDocument {
   return {
     format: DOC_FORMAT,
     version: DOC_VERSION,
-    nodes: nodes.map((n) => ({
-      id: n.id as string,
-      type: n.type as NodeKind,
-      typeVersion: (n.typeVersion as number) ?? 1,
-      position: { x: (n.position as { x: number }).x, y: (n.position as { y: number }).y },
-      data: (n.data as Record<string, unknown>) ?? {},
-    })),
+    nodes: nodes.map((n) => {
+      const up = upgradeNode(n.type as NodeKind, (n.typeVersion as number) ?? 1, (n.data as Record<string, unknown>) ?? {});
+      return {
+        id: n.id as string,
+        type: n.type as NodeKind,
+        typeVersion: up.typeVersion,
+        position: { x: (n.position as { x: number }).x, y: (n.position as { y: number }).y },
+        data: up.data,
+      };
+    }),
     edges: edges.map((e) => ({
       id: e.id as string,
       source: e.source as string,

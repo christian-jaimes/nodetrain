@@ -67,6 +67,8 @@ const MIGRATIONS: string[] = [
   CREATE INDEX exec_run ON node_executions(run_id, seq);
   CREATE INDEX exec_board_node ON node_executions(board_id, node_id, ended_at);
   `,
+  // 2: token usage reported by the provider, per node execution.
+  `ALTER TABLE node_executions ADD COLUMN usage TEXT;`,
 ];
 
 export type DB = DatabaseSync;

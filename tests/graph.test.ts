@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CATALOG } from '../shared/graph/catalog';
 import { DOC_VERSION, fromDocument, migrateDocument, toDocument } from '../shared/graph/document';
 import type { AppEdge, AppNode, ImageAsset, ImageGenerationNode, NodeKind } from '../shared/graph/types';
+import { apiQuality, apiSize, settingsIssues } from '../shared/graph/models';
 import { checkConnection, isStale, planRun, resolveInputs, runKey, validateGraph } from '../shared/graph/validate';
 
 const node = (id: string, kind: NodeKind, patch: Record<string, unknown> = {}): AppNode =>
@@ -109,8 +110,33 @@ describe('board documents', () => {
     expect(() => migrateDocument(null)).toThrow();
   });
 
+  it('moves boards off retired models', () => {
+    const doc = migrateDocument({
+      version: 1,
+      nodes: [{ id: 'g', type: 'imageGeneration', typeVersion: 1, position: { x: 0, y: 0 }, data: { title: 'G', prompt: '', model: 'gpt-image-1', aspectRatio: '1:1', quality: 'High' } }],
+      edges: [],
+    });
+    expect(doc.nodes[0].data.model).toBe('gpt-image-2');
+    expect(doc.nodes[0].typeVersion).toBe(2);
+  });
+
   it('drops edges whose nodes are gone', () => {
     const doc = migrateDocument({ version: 1, nodes: [{ id: 'a', type: 'prompt', position: { x: 0, y: 0 }, data: {} }], edges: [{ id: 'e', source: 'a', target: 'zzz' }] });
     expect(fromDocument(doc).edges).toHaveLength(0);
+  });
+});
+
+describe('model settings', () => {
+  it('maps aspect ratios and qualities to API values', () => {
+    expect(apiSize('gpt-image-2', '16:9')).toBe('1536x864');
+    expect(apiSize('gpt-image-1.5', '16:9')).toBeUndefined();
+    expect(apiSize('gpt-image-1.5', 'Default')).toBe('auto');
+    expect(apiQuality('Extra high')).toBe('xhigh');
+  });
+
+  it('explains unsupported combinations', () => {
+    expect(settingsIssues('gpt-image-2', '16:9', 'High')).toEqual([]);
+    expect(settingsIssues('gpt-image-1.5', '16:9', 'Max')).toHaveLength(2);
+    expect(settingsIssues('dall-e-3', '1:1', 'Default')[0]).toMatch(/retired/);
   });
 });

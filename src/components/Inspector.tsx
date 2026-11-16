@@ -2,7 +2,7 @@ import { useReactFlow } from '@xyflow/react';
 import { ChevronDown, Download, History, Play, Redo2, Scan, Square, Trash2, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { ASPECT_RATIOS, CATALOG, IMAGE_MODELS, QUALITIES } from '../../shared/graph/catalog';
+import { CATALOG } from '../../shared/graph/catalog';
 import { FIT_OPTIONS } from '../lib/ui';
 import type { AppNode, ImageGenerationNode as GenNode } from '../../shared/graph/types';
 import { selectedOutput, validateGraph } from '../../shared/graph/validate';
@@ -10,7 +10,7 @@ import type { NodeExecutionView } from '../../shared/api';
 import { exportWorkflow, useBoard } from '../store/board';
 import { NodeIconTile } from './icons';
 import { useImageImport } from './nodes/ImageInputNode';
-import { Select, useGenerationState } from './nodes/ImageGenerationNode';
+import { ModelSettings, useGenerationState } from './nodes/ImageGenerationNode';
 import { StatusChip } from './nodes/parts';
 
 export function Toolbar({ onShowActivity }: { onShowActivity: () => void }) {
@@ -52,6 +52,13 @@ export function Toolbar({ onShowActivity }: { onShowActivity: () => void }) {
   );
 }
 
+function formatTokens(u: Record<string, number>) {
+  const parts = [`${u.totalTokens.toLocaleString()} tokens`];
+  if (u.inputTokens !== undefined) parts.push(`${u.inputTokens.toLocaleString()} in`);
+  if (u.outputTokens !== undefined) parts.push(`${u.outputTokens.toLocaleString()} out`);
+  return parts.join(' · ');
+}
+
 const STATUS_LABEL: Record<NodeExecutionView['status'], string> = {
   succeeded: 'Succeeded',
   failed: 'Failed',
@@ -84,6 +91,11 @@ function ActivityList({ entries }: { entries: NodeExecutionView[] }) {
               ))}
             </div>
           ) : null}
+          {a.usage?.totalTokens ? (
+            <div className="activity__run">
+              {formatTokens(a.usage)}
+            </div>
+          ) : null}
           <div className="activity__run">
             Run {a.runId}
             {a.startedAt && a.endedAt ? ` · ${((a.endedAt - a.startedAt) / 1000).toFixed(1)}s` : ''}
@@ -95,7 +107,6 @@ function ActivityList({ entries }: { entries: NodeExecutionView[] }) {
 }
 
 function GenerationProps({ node }: { node: GenNode }) {
-  const updateData = useBoard((s) => s.updateData);
   const selectOutput = useBoard((s) => s.selectOutput);
   const { inputs, status } = useGenerationState(node);
   const [open, setOpen] = useState(true);
@@ -122,11 +133,7 @@ function GenerationProps({ node }: { node: GenNode }) {
           <p className="muted small">No prompt yet.</p>
         )}
       </div>
-      <Select id="i-model" label="Model" value={d.model} options={IMAGE_MODELS} onChange={(v) => updateData(node.id, { model: v })} />
-      <div className="field-row">
-        <Select id="i-aspect" label="Aspect ratio" value={d.aspectRatio} options={ASPECT_RATIOS} onChange={(v) => updateData(node.id, { aspectRatio: v })} />
-        <Select id="i-quality" label="Quality" value={d.quality} options={QUALITIES} onChange={(v) => updateData(node.id, { quality: v })} />
-      </div>
+      <ModelSettings node={node} idPrefix="i" />
       <p className="muted small">References: {inputs.references.length || 'none'}</p>
 
       <button className="section-head" onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -234,6 +241,7 @@ function NodeProperties({ node }: { node: AppNode }) {
 }
 
 function WorkflowOverview() {
+  const provider = useBoard((s) => s.provider);
   const nodes = useBoard((s) => s.nodes);
   const edges = useBoard((s) => s.edges);
   const select = useBoard((s) => s.select);
@@ -255,6 +263,15 @@ function WorkflowOverview() {
           <dd>{nodes.filter((n) => n.type === 'imageGeneration').length}</dd>
         </div>
       </dl>
+      <span className="field-label">Image provider</span>
+      {provider?.id === 'simulated' ? (
+        <p className="provider-hint">
+          <strong>Simulated.</strong> No model is called and nothing is charged. To generate real images, copy <code>.env.example</code> to <code>.env</code>, add your
+          OpenAI API key, and restart <code>npm run dev</code>.
+        </p>
+      ) : (
+        <p className="muted small">{provider ? `${provider.label}, using the API key on this computer.` : 'Unknown'}</p>
+      )}
       <span className="field-label">Before you run</span>
       {issues.length ? (
         <ul className="issues">

@@ -1,4 +1,5 @@
 import { CATALOG, PORT_TYPE_LABEL, getPort } from './catalog';
+import { settingsIssues } from './models';
 import type { AppEdge, AppNode, ImageAsset, ImageGenerationNode, NodeKind } from './types';
 
 export type ConnectionLike = {
@@ -113,6 +114,9 @@ export function validateNode(node: AppNode, nodes: AppNode[], edges: AppEdge[], 
   const r = resolveInputs(node, nodes, edges, outputOf);
   const issues: Issue[] = [];
   if (!r.prompt) issues.push({ nodeId: node.id, message: `${node.data.title}: needs a prompt.`, detail: 'Needs a prompt. Write one in the node or connect a Prompt node.' });
+  for (const detail of settingsIssues(node.data.model, node.data.aspectRatio, node.data.quality)) {
+    issues.push({ nodeId: node.id, message: `${node.data.title}: ${detail}`, detail });
+  }
   if (r.references.length > 16) issues.push({ nodeId: node.id, message: `${node.data.title}: too many reference images.`, detail: 'Too many reference images (max 16).' });
   return issues;
 }
