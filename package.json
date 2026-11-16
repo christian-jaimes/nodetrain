@@ -7,7 +7,7 @@
     "predev": "node scripts/check-node.mjs",
     "dev": "concurrently -k -n server,app -c red,gray \"npm:dev:server\" \"npm:dev:app\"",
     "dev:app": "vite",
-    "dev:server": "tsx watch --clear-screen=false --disable-warning=ExperimentalWarning server/index.ts",
+    "dev:server": "node --watch --disable-warning=ExperimentalWarning --import tsx server/index.ts",
     "build": "tsc -b && vite build",
     "prestart": "node scripts/check-node.mjs",
     "start": "npm run build && tsx --disable-warning=ExperimentalWarning server/index.ts",
