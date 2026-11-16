@@ -123,8 +123,21 @@ button:disabled {
     height 0.46s cubic-bezier(0.4, 0, 0.1, 1);
 }
 /* Same width whether or not the node list is showing; only the height changes. */
-.sidebar.is-short {
-  height: 252px;
+.sidebar.is-bar {
+  height: 68px;
+}
+.sidebar__bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 260px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 10px 0 16px;
+}
+.sidebar__bar .logo {
+  flex: 1;
+  min-width: 0;
 }
 .sidebar.is-shorter {
   height: 196px;

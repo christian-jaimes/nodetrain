@@ -1,5 +1,5 @@
 import { useReactFlow } from '@xyflow/react';
-import { Box, ChevronDown, ChevronRight, LayoutGrid, Search } from 'lucide-react';
+import { Box, ChevronDown, LayoutGrid, Search, Settings } from 'lucide-react';
 import { forwardRef, useState } from 'react';
 import { CATALOG, NODE_KINDS } from '../../shared/graph/catalog';
 import type { NodeKind } from '../../shared/graph/types';
@@ -39,6 +39,7 @@ export const Sidebar = forwardRef<HTMLInputElement, { collapsed: boolean; onTogg
   const hasWorkflow = useBoard((s) => s.boardId !== null);
   const galleryOpen = useBoard((s) => s.galleryOpen);
   const setGalleryOpen = useBoard((s) => s.setGalleryOpen);
+  const setSettingsOpen = useBoard((s) => s.setSettingsOpen);
   const { screenToFlowPosition } = useReactFlow();
 
   const showNodes = hasWorkflow && !galleryOpen && !collapsed;
@@ -48,20 +49,33 @@ export const Sidebar = forwardRef<HTMLInputElement, { collapsed: boolean; onTogg
     addNode(kind, { x: pos.x + Math.random() * 40, y: pos.y + Math.random() * 40 });
   };
 
-  const cls = ['panel', 'sidebar', galleryOpen ? 'is-gallery' : showNodes ? 'is-expanded' : hasWorkflow ? 'is-short' : 'is-shorter'].join(' ');
+  // Collapsed: a single bar with the logo, name, settings and the expand chevron.
+  const bar = hasWorkflow && collapsed && !galleryOpen;
+  const cls = ['panel', 'sidebar', galleryOpen ? 'is-gallery' : bar ? 'is-bar' : showNodes ? 'is-expanded' : 'is-shorter'].join(' ');
 
   return (
     <aside className={cls} aria-label={galleryOpen ? 'Workflow gallery' : 'Sidebar'}>
+      {bar ? (
+        <div className="sidebar__bar">
+          <Logo />
+          <button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Account settings" title="Account settings">
+            <Settings size={18} />
+          </button>
+          <button className="icon-btn" onClick={onToggle} aria-label="Expand sidebar" aria-expanded={false}>
+            <ChevronDown size={18} />
+          </button>
+        </div>
+      ) : (
       <div className="sidebar__col">
         <button
           className="sidebar__brand"
           onClick={onToggle}
           disabled={galleryOpen || !hasWorkflow}
-          aria-label={collapsed ? 'nodetrain: expand sidebar' : 'nodetrain: collapse sidebar'}
+          aria-label="nodetrain: collapse sidebar"
           aria-expanded={showNodes}
         >
           <Logo />
-          {hasWorkflow && !galleryOpen ? <ChevronRight size={16} className={collapsed ? '' : 'flip'} /> : null}
+          {hasWorkflow && !galleryOpen ? <ChevronDown size={16} className="flip" /> : null}
         </button>
         <nav className="sidebar__tabs">
           <button className={`side-tab ${galleryOpen ? 'is-active' : ''}`} onClick={() => setGalleryOpen(!galleryOpen)} aria-pressed={galleryOpen}>
@@ -134,6 +148,7 @@ export const Sidebar = forwardRef<HTMLInputElement, { collapsed: boolean; onTogg
           <AccountButton />
         </div>
       </div>
+      )}
       <div className="gallery-wrap" inert={!galleryOpen} aria-hidden={!galleryOpen}>
         <Gallery />
       </div>
