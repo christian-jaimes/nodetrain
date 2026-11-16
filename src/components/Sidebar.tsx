@@ -55,28 +55,24 @@ export const Sidebar = forwardRef<HTMLInputElement, { collapsed: boolean; onTogg
 
   return (
     <aside className={cls} aria-label={galleryOpen ? 'Workflow gallery' : 'Sidebar'}>
-      {bar ? (
-        <div className="sidebar__bar">
+      {/* The header never unmounts or moves, so the logo stays put while the panel resizes. */}
+      <div className={`sidebar__head ${bar ? 'is-bar' : ''}`}>
+        <button className="sidebar__brand" onClick={onToggle} disabled={galleryOpen || !hasWorkflow} aria-label={bar ? 'nodetrain: expand sidebar' : 'nodetrain: collapse sidebar'} aria-expanded={!bar}>
           <Logo />
+        </button>
+        {bar ? (
           <button className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label="Account settings" title="Account settings">
             <Settings size={18} />
           </button>
-          <button className="icon-btn" onClick={onToggle} aria-label="Expand sidebar" aria-expanded={false}>
-            <ChevronDown size={18} />
+        ) : null}
+        {hasWorkflow && !galleryOpen ? (
+          <button className="icon-btn" onClick={onToggle} aria-label={bar ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!bar}>
+            <ChevronDown size={18} className={bar ? '' : 'flip'} />
           </button>
-        </div>
-      ) : (
+        ) : null}
+      </div>
+      {!bar ? (
       <div className="sidebar__col">
-        <button
-          className="sidebar__brand"
-          onClick={onToggle}
-          disabled={galleryOpen || !hasWorkflow}
-          aria-label="nodetrain: collapse sidebar"
-          aria-expanded={showNodes}
-        >
-          <Logo />
-          {hasWorkflow && !galleryOpen ? <ChevronDown size={16} className="flip" /> : null}
-        </button>
         <nav className="sidebar__tabs">
           <button className={`side-tab ${galleryOpen ? 'is-active' : ''}`} onClick={() => setGalleryOpen(!galleryOpen)} aria-pressed={galleryOpen}>
             <LayoutGrid size={17} /> Workflows
@@ -148,7 +144,7 @@ export const Sidebar = forwardRef<HTMLInputElement, { collapsed: boolean; onTogg
           <AccountButton />
         </div>
       </div>
-      )}
+      ) : null}
       <div className="gallery-wrap" inert={!galleryOpen} aria-hidden={!galleryOpen}>
         <Gallery />
       </div>
