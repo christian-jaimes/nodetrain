@@ -3,10 +3,10 @@ import { Play, Sparkles } from 'lucide-react';
 import { CATALOG, aspectSize } from '../../../shared/graph/catalog';
 import { ASPECT_RATIOS, IMAGE_MODEL_LIST, apiSize, formatDate, getModel, settingsIssues, shutdownNotice } from '../../../shared/graph/models';
 import type { ImageGenerationNode as GenNode } from '../../../shared/graph/types';
-import { isStale, resolveInputs, selectedOutput } from '../../../shared/graph/validate';
+import { isStale, resolveInputs } from '../../../shared/graph/validate';
 
 import { useBoard } from '../../store/board';
-import { NodeShell, Port, StatusChip } from './parts';
+import { ImageMosaic, NodeShell, Port, StatusChip } from './parts';
 
 type Option = string | { value: string; label: string; disabled?: boolean };
 
@@ -97,7 +97,6 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
   const running = useBoard((s) => s.running);
   const node = { id, data, type: 'imageGeneration', position: { x: 0, y: 0 } } as GenNode;
   const { inputs, status, connectedPrompts } = useGenerationState(node);
-  const out = selectedOutput(node);
   const [pw, ph] = aspectSize(data.aspectRatio);
   const [promptPort, refPort] = CATALOG.imageGeneration.inputs;
 
@@ -159,9 +158,12 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
         </p>
       ) : null}
 
-      <div className={`gen-output ${status === 'stale' ? 'is-stale' : ''}`} style={{ aspectRatio: `${pw} / ${ph}` }}>
-        {out ? (
-          <img src={out.thumb ?? out.src} alt={`Output of ${data.title}`} draggable={false} />
+      <div
+        className={`gen-output ${status === 'stale' ? 'is-stale' : ''} ${data.outputs.length ? 'has-images' : ''}`}
+        style={data.outputs.length ? undefined : { aspectRatio: `${pw} / ${ph}` }}
+      >
+        {data.outputs.length ? (
+          <ImageMosaic images={data.outputs} alt={() => `Output of ${data.title}`} />
         ) : (
           <div className="gen-output__empty">
             <Sparkles size={20} />
@@ -169,7 +171,6 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
           </div>
         )}
         {status === 'running' ? <div className="gen-output__shimmer" /> : null}
-        {data.outputs.length > 1 ? <span className="gen-output__count">{data.outputs.length} versions</span> : null}
       </div>
     </NodeShell>
   );

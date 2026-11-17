@@ -5,7 +5,7 @@ import { CATALOG } from '../../../shared/graph/catalog';
 import type { ImageInputNode as ImageInputNodeType } from '../../../shared/graph/types';
 import { importImage } from '../../lib/images';
 import { useBoard } from '../../store/board';
-import { NodeShell, Port } from './parts';
+import { ImageMosaic, NodeShell, Port } from './parts';
 
 export function useImageImport(nodeId: string) {
   const notify = useBoard((s) => s.notify);
@@ -27,9 +27,7 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const importFiles = useImageImport(id);
-  const [first, ...rest] = data.images;
-  const shown = rest.slice(0, 2);
-  const more = rest.length - shown.length;
+  const images = data.images;
 
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer.files.length) return;
@@ -76,27 +74,13 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
       >
-        {!first ? (
+        {images.length === 0 ? (
           <button className="image-empty nodrag" onClick={() => fileRef.current?.click()}>
             <ImagePlus size={22} />
             <span>Drop images or click to upload</span>
           </button>
-        ) : rest.length === 0 ? (
-          <img className="image-single" src={first.thumb ?? first.src} alt={first.name} draggable={false} />
         ) : (
-          <div className="image-grid">
-            <img className="image-grid__main" src={first.thumb ?? first.src} alt={first.name} draggable={false} />
-            {shown.map((img) => (
-              <img key={img.id} src={img.thumb ?? img.src} alt={img.name} draggable={false} />
-            ))}
-            {more > 0 ? (
-              <span className="image-grid__more">+{more} more</span>
-            ) : (
-              <button className="image-grid__more nodrag" onClick={() => fileRef.current?.click()} aria-label="Add images">
-                +
-              </button>
-            )}
-          </div>
+          <ImageMosaic images={images} />
         )}
       </div>
     </NodeShell>
