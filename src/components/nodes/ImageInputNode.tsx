@@ -27,9 +27,12 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const importFiles = useImageImport(id);
-  const [first, ...rest] = data.images;
-  const shown = rest.slice(0, 2);
-  const more = rest.length - shown.length;
+  const images = data.images;
+  const first = images[0];
+  const tiles = images.length > 4 ? images.slice(0, 3) : images;
+  const more = images.length > 4 ? images.length - 3 : 0;
+  // Card height follows the first image's shape; clamped so the mosaic never gets extreme.
+  const ratio = first ? Math.min(1.4, Math.max(0.75, first.width / first.height)) : 1;
 
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer.files.length) return;
@@ -81,21 +84,22 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
             <ImagePlus size={22} />
             <span>Drop images or click to upload</span>
           </button>
-        ) : rest.length === 0 ? (
-          <img className="image-single" src={first.thumb ?? first.src} alt={first.name} draggable={false} />
+        ) : images.length === 1 ? (
+          <img
+            className="image-single"
+            src={first.thumb ?? first.src}
+            alt={first.name}
+            width={first.width}
+            height={first.height}
+            style={{ aspectRatio: `${first.width} / ${first.height}` }}
+            draggable={false}
+          />
         ) : (
-          <div className="image-grid">
-            <img className="image-grid__main" src={first.thumb ?? first.src} alt={first.name} draggable={false} />
-            {shown.map((img) => (
+          <div className={`image-grid image-grid--${tiles.length + (more ? 1 : 0)}`} style={{ aspectRatio: String(ratio) }}>
+            {tiles.map((img) => (
               <img key={img.id} src={img.thumb ?? img.src} alt={img.name} draggable={false} />
             ))}
-            {more > 0 ? (
-              <span className="image-grid__more">+{more} more</span>
-            ) : (
-              <button className="image-grid__more nodrag" onClick={() => fileRef.current?.click()} aria-label="Add images">
-                +
-              </button>
-            )}
+            {more > 0 && <span className="image-grid__more">+{more} more</span>}
           </div>
         )}
       </div>
