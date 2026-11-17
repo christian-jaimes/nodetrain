@@ -184,7 +184,7 @@ export class Orchestrator {
 
   // ---------- Starting ----------
 
-  start(boardId: string, revision: number, targetNodeId?: string | null, upstream = true): RunView {
+  start(boardId: string, revision: number, targetNodeId?: string | string[] | null, upstream = true): RunView {
     const board = this.db.prepare('SELECT revision FROM boards WHERE id = ?').get(boardId) as { revision: number } | undefined;
     if (!board) throw new RunError('Board not found.', 404);
     if (board.revision !== revision) throw new RunError('The board changed since it was last saved. Save and try again.', 409);
@@ -192,14 +192,15 @@ export class Orchestrator {
     if (active) throw new RunError('A run is already in progress for this board.', 409);
 
     const { nodes, edges } = this.loadRevision(boardId, revision);
-    if (targetNodeId && !nodes.some((n) => n.id === targetNodeId)) throw new RunError('That node is not on the saved board.', 400);
-    const order = planRun(nodes, edges, targetNodeId ?? undefined, upstream);
+    const targets = targetNodeId == null ? [] : Array.isArray(targetNodeId) ? targetNodeId : [targetNodeId];
+    if (targets.some((t) => !nodes.some((n) => n.id === t))) throw new RunError('That node is not on the saved board.', 400);
+    const order = planRun(nodes, edges, targets.length ? targets : undefined, upstream);
     if (!order.length) throw new RunError('Add an Image Generation node to run this workflow.', 400);
 
     const runId = nanoid(10);
     const now = Date.now();
     tx(this.db, () => {
-      this.db.prepare('INSERT INTO runs (id, board_id, revision, target_node_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(runId, boardId, revision, targetNodeId ?? null, 'queued', now);
+      this.db.prepare('INSERT INTO runs (id, board_id, revision, target_node_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(runId, boardId, revision, targets.length === 1 ? targets[0] : null, 'queued', now);
       const ins = this.db.prepare(`INSERT INTO node_executions (id, run_id, board_id, node_id, node_title, seq, status) VALUES (?, ?, ?, ?, ?, ?, 'queued')`);
       order.forEach((nodeId, i) => {
         const n = nodes.find((x) => x.id === nodeId)!;

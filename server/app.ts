@@ -245,7 +245,7 @@ export function createApp({ dataDir, provider = new SimulatedProvider(), provide
   // ---------- Runs ----------
 
   app.post('/api/boards/:id/runs', async (c) => {
-    const body = (await c.req.json()) as { revision: number; targetNodeId?: string | null; upstream?: boolean };
+    const body = (await c.req.json()) as { revision: number; targetNodeId?: string | string[] | null; upstream?: boolean };
     return c.json(runs.start(c.req.param('id'), body.revision, body.targetNodeId, body.upstream !== false), 202);
   });
   app.get('/api/runs/:id', (c) => c.json(runs.getRun(c.req.param('id'))));

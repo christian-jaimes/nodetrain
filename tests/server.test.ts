@@ -182,6 +182,18 @@ describe('runs', () => {
     expect(events.indexOf('start:after')).toBeGreaterThan(events.indexOf('end:p1'));
   });
 
+  it('runs several chosen nodes only, without their upstream or other nodes', async () => {
+    make();
+    const nodes = ['g1', 'g2', 'g3', 'g4'].map((id) => node(id, 'imageGeneration', { prompt: id }));
+    const b = await createBoard(nodes, [edge('g1', 'g2', 'image', 'references')]);
+    const res = await call('POST', `/api/boards/${b.id}/runs`, { revision: b.revision, targetNodeId: ['g2', 'g3'], upstream: false });
+    expect(res.status).toBe(202);
+    await ctx.runs.idle();
+    const run = await json<RunView>(call('GET', `/api/runs/${((await res.json()) as RunView).id}`));
+    expect(run.status).toBe('succeeded');
+    expect(run.nodes.map((n) => n.nodeId).sort()).toEqual(['g2', 'g3']);
+  });
+
   it('only runs from a saved revision', async () => {
     make();
     const b = await createBoard([node('g', 'imageGeneration', { prompt: 'x' })], []);

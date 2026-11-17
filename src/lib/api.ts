@@ -54,7 +54,7 @@ export const api = {
   saveTemplate: (name: string, document: BoardDocument) => request<UserTemplate>('POST', '/api/templates', { name, document }),
   deleteTemplate: (id: string) => request<void>('DELETE', `/api/templates/${id}`),
   boardState: (id: string) => request<BoardRunState>('GET', `/api/boards/${id}/state`),
-  startRun: (boardId: string, revision: number, targetNodeId?: string, upstream = true) => request<RunView>('POST', `/api/boards/${boardId}/runs`, { revision, targetNodeId, upstream }),
+  startRun: (boardId: string, revision: number, targetNodeId?: string | string[], upstream = true) => request<RunView>('POST', `/api/boards/${boardId}/runs`, { revision, targetNodeId, upstream }),
   getRun: (id: string) => request<RunView>('GET', `/api/runs/${id}`),
   cancelRun: (id: string) => request<RunView>('POST', `/api/runs/${id}/cancel`),
   settings: () => request<ProviderStatus>('GET', '/api/settings'),
