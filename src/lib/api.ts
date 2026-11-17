@@ -51,7 +51,7 @@ export const api = {
   duplicateBoard: (id: string) => request<BoardPayload>('POST', `/api/boards/${id}/duplicate`),
   deleteBoard: (id: string) => request<void>('DELETE', `/api/boards/${id}`),
   boardState: (id: string) => request<BoardRunState>('GET', `/api/boards/${id}/state`),
-  startRun: (boardId: string, revision: number, targetNodeId?: string) => request<RunView>('POST', `/api/boards/${boardId}/runs`, { revision, targetNodeId }),
+  startRun: (boardId: string, revision: number, targetNodeId?: string, upstream = true) => request<RunView>('POST', `/api/boards/${boardId}/runs`, { revision, targetNodeId, upstream }),
   getRun: (id: string) => request<RunView>('GET', `/api/runs/${id}`),
   cancelRun: (id: string) => request<RunView>('POST', `/api/runs/${id}/cancel`),
   settings: () => request<ProviderStatus>('GET', '/api/settings'),

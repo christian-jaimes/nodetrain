@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { del as idbDel, get as idbGet } from 'idb-keyval';
 import type { NodeChangeset, EdgeChangeset, XYPosition } from '@xyflow/react';
-import type { BoardPayload, BoardRunState, BoardSummary, NodeExecutionView, Profile, RunView } from '../../shared/api';
+import { EMPTY_SPEND, type BoardPayload, type BoardRunState, type BoardSummary, type NodeExecutionView, type Profile, type RunView } from '../../shared/api';
 import { CATALOG, getPort } from '../../shared/graph/catalog';
 import { fromDocument, migrateDocument, toDocument } from '../../shared/graph/document';
 import { checkConnection, planRun, type CheckResult, type ConnectionLike } from '../../shared/graph/validate';
@@ -32,6 +32,9 @@ type BoardState = {
   boards: BoardSummary[];
   /** The workflow gallery (sidebar expanded over the screen) and its search, filter and sort. */
   galleryOpen: boolean;
+  /** Right panel shows run history instead of the selected node's properties. */
+  historyOpen: boolean;
+  setHistoryOpen: (open: boolean) => void;
   gallery: GalleryView;
   profile: Profile;
   /** Which image provider the server is using. */
@@ -75,7 +78,8 @@ type BoardState = {
   paste: () => void;
   duplicateSelection: () => void;
   deleteSelection: () => void;
-  run: (targetId?: string) => Promise<void>;
+  /** With a target, upstream=false runs only that node and reuses what its inputs last produced. */
+  run: (targetId?: string, upstream?: boolean) => Promise<void>;
   cancelRun: () => void;
   selectOutput: (nodeId: string, outputId: string) => void;
   loadTemplate: (t: Template) => Promise<void>;
@@ -299,6 +303,8 @@ export const useBoard = create<BoardState>((set, get) => {
     revision: 0,
     boards: [],
     galleryOpen: false,
+    historyOpen: false,
+    setHistoryOpen: (open) => set({ historyOpen: open }),
     gallery: DEFAULT_GALLERY,
     profile: { name: '', picture: null },
     provider: null,
@@ -310,7 +316,7 @@ export const useBoard = create<BoardState>((set, get) => {
     lastCommit: null,
     clipboard: null,
     activity: [],
-    spend: { board: 0, today: 0 },
+    spend: EMPTY_SPEND,
     activeRunId: null,
     running: false,
     loaded: false,
@@ -444,10 +450,10 @@ export const useBoard = create<BoardState>((set, get) => {
       set({ nodes: s.nodes.filter((n) => !ids.has(n.id)), edges: s.edges.filter((e) => !e.selected && !ids.has(e.source) && !ids.has(e.target)) });
     },
 
-    run: async (targetId) => {
+    run: async (targetId, upstream = true) => {
       const s = get();
       if (s.running || !s.boardId) return;
-      if (!planRun(s.nodes, s.edges, targetId).length) {
+      if (!planRun(s.nodes, s.edges, targetId, upstream).length) {
         s.notify('Add an Image Generation node to run this workflow.');
         return;
       }
@@ -455,7 +461,7 @@ export const useBoard = create<BoardState>((set, get) => {
       try {
         clearTimeout(saveTimer);
         await saveNow(); // Runs use the saved revision, so save first.
-        const run = await api.startRun(get().boardId!, get().revision, targetId);
+        const run = await api.startRun(get().boardId!, get().revision, targetId, upstream);
         applyRun(run);
         void poll(run.id);
       } catch (err) {
@@ -486,7 +492,7 @@ export const useBoard = create<BoardState>((set, get) => {
           cur.boardId && cur.nodes.length === 0
             ? await api.saveBoard(cur.boardId, { name: built.name, baseRevision: cur.revision, document: doc })
             : await api.createBoard(built.name, doc);
-        showBoard(board, { outputs: {}, latest: {}, lastSucceeded: {}, activeRunId: null, activity: [], spend: { board: 0, today: 0 } });
+        showBoard(board, { outputs: {}, latest: {}, lastSucceeded: {}, activeRunId: null, activity: [], spend: EMPTY_SPEND });
         set({ templatesOpen: false });
         void get().refreshBoards();
       } catch (err) {
@@ -504,7 +510,7 @@ export const useBoard = create<BoardState>((set, get) => {
           return;
         }
         const board = await api.createBoard('Untitled workflow');
-        showBoard(board, { outputs: {}, latest: {}, lastSucceeded: {}, activeRunId: null, activity: [], spend: { board: 0, today: 0 } }, true);
+        showBoard(board, { outputs: {}, latest: {}, lastSucceeded: {}, activeRunId: null, activity: [], spend: EMPTY_SPEND }, true);
         void get().refreshBoards();
       } catch (err) {
         get().notify(errorText(err), 'error');

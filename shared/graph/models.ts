@@ -144,6 +144,17 @@ export function estimateCost(modelId: string, usage: Record<string, number> | un
   return (text * m.prices.textInput + image * m.prices.imageInput + out * m.prices.imageOutput) / 1_000_000;
 }
 
+/** The same estimate split by what it paid for: text input, versus image input and output. */
+export function costBreakdown(modelId: string, usage: Record<string, number> | undefined): { textUsd: number; imageUsd: number } | undefined {
+  const m = getModel(modelId) ?? getModel(RETIRED_MODELS[modelId] ?? '');
+  if (!m || !usage) return undefined;
+  const out = usage.outputTokens ?? 0;
+  const image = usage.inputImageTokens ?? 0;
+  const text = usage.inputTextTokens ?? Math.max(0, (usage.inputTokens ?? 0) - image);
+  if (!out && !text && !image) return undefined;
+  return { textUsd: (text * m.prices.textInput) / 1_000_000, imageUsd: (image * m.prices.imageInput + out * m.prices.imageOutput) / 1_000_000 };
+}
+
 export function formatUsd(usd: number) {
   if (usd === 0) return '$0.00';
   if (usd < 0.01) return '<$0.01';

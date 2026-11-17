@@ -1,12 +1,12 @@
 import { useReactFlow } from '@xyflow/react';
-import { Download, History, Play, Redo2, Scan, Square, Trash2, Undo2, Upload, X } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, Download, History, Play, Redo2, Scan, Square, Trash2, Undo2, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CATALOG } from '../../shared/graph/catalog';
 import { formatUsd } from '../../shared/graph/models';
 import { FIT_OPTIONS } from '../lib/ui';
 import type { AppNode, ImageGenerationNode as GenNode, ImageInputNode, PromptNode, RunStatus } from '../../shared/graph/types';
-import { selectedOutput, validateGraph } from '../../shared/graph/validate';
+import { selectedOutput } from '../../shared/graph/validate';
 import type { NodeExecutionView } from '../../shared/api';
 import { exportWorkflow, useBoard } from '../store/board';
 import { NodeIconTile } from './icons';
@@ -14,19 +14,73 @@ import { useImageImport } from './nodes/ImageInputNode';
 import { ModelSettings, useGenerationState } from './nodes/ImageGenerationNode';
 import { StatusChip } from './nodes/parts';
 
-export function Toolbar({ historyOpen, onToggleHistory, node }: { historyOpen: boolean; onToggleHistory: () => void; node: AppNode | null }) {
+function RunButton({ node }: { node: AppNode | null }) {
+  const run = useBoard((s) => s.run);
+  const running = useBoard((s) => s.running);
+  const cancelRun = useBoard((s) => s.cancelRun);
+  const [menu, setMenu] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: Event) => {
+      if (e.type === 'keydown' ? (e as KeyboardEvent).key === 'Escape' : !ref.current?.contains(e.target as Node)) setMenu(false);
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [menu]);
+  if (running) {
+    return (
+      <button className="primary-btn primary-btn--ghost" onClick={cancelRun}>
+        <Square size={13} fill="currentColor" /> Stop
+      </button>
+    );
+  }
+  if (!node) {
+    return (
+      <button className="primary-btn" onClick={() => void run()} title="Run the whole workflow (Ctrl+Enter)">
+        <Play size={14} fill="currentColor" /> Run Workflow
+      </button>
+    );
+  }
+  // Only Image Generation nodes produce anything today, so other kinds have nothing to run on their own.
+  const runnable = node.type === 'imageGeneration';
+  return (
+    <div className="split-btn" ref={ref}>
+      <button className="primary-btn split-btn__main" disabled={!runnable} onClick={() => void run(node.id, false)} title={runnable ? 'Run only this node (Ctrl+Enter)' : 'This node has nothing to run on its own'}>
+        <Play size={14} fill="currentColor" /> Run Node
+      </button>
+      <button className="primary-btn split-btn__caret" disabled={!runnable} aria-haspopup="menu" aria-expanded={menu} aria-label="More run options" onClick={() => setMenu(!menu)}>
+        <ChevronDown size={16} />
+      </button>
+      {menu ? (
+        <div className="split-btn__menu" role="menu">
+          <button
+            role="menuitem"
+            onClick={() => {
+              setMenu(false);
+              void run(node.id, true);
+            }}
+          >
+            Run node + upstream nodes
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Toolbar({ historyOpen, onToggleHistory, node }: { historyOpen: boolean; onToggleHistory: () => void; node: AppNode | null }) {
   const undo = useBoard((s) => s.undo);
   const redo = useBoard((s) => s.redo);
   const canUndo = useBoard((s) => s.past.length > 0);
   const canRedo = useBoard((s) => s.future.length > 0);
-  const run = useBoard((s) => s.run);
-  const running = useBoard((s) => s.running);
-  const cancelRun = useBoard((s) => s.cancelRun);
   const { fitView } = useReactFlow();
-  // Only Image Generation nodes produce anything today, so the other kinds have nothing to run on their own.
-  const runnable = !node || node.type === 'imageGeneration';
   return (
-    <div className="panel toolbar" role="toolbar" aria-label="Workflow actions">
+    <div className="toolbar" role="toolbar" aria-label="Workflow actions">
       <button className="icon-btn" onClick={() => void fitView(FIT_OPTIONS)} title="Fit workflow (Shift+1)" aria-label="Fit workflow to screen">
         <Scan size={18} />
       </button>
@@ -36,27 +90,14 @@ export function Toolbar({ historyOpen, onToggleHistory, node }: { historyOpen: b
       <button className="icon-btn" onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
         <Redo2 size={18} />
       </button>
-      <button className={`icon-btn ${historyOpen ? 'is-on' : ''}`} onClick={onToggleHistory} aria-pressed={historyOpen} title="Run history and spend" aria-label="Run history">
+      <button className={`icon-btn ${historyOpen ? 'is-on' : ''}`} onClick={onToggleHistory} aria-pressed={historyOpen} title="Run history" aria-label="Run history">
         <History size={18} />
       </button>
       <button className="icon-btn" onClick={exportWorkflow} title="Export workflow as JSON" aria-label="Export workflow">
         <Download size={18} />
       </button>
       <span className="toolbar__sep" aria-hidden />
-      {running ? (
-        <button className="primary-btn primary-btn--ghost" onClick={cancelRun}>
-          <Square size={13} fill="currentColor" /> Stop
-        </button>
-      ) : (
-        <button
-          className="primary-btn"
-          disabled={!runnable}
-          onClick={() => void run(node?.id)}
-          title={runnable ? (node ? 'Run this node and anything it depends on (Ctrl+Enter)' : 'Run workflow (Ctrl+Enter)') : 'This node has nothing to run on its own'}
-        >
-          <Play size={14} fill="currentColor" /> {node ? 'Run Node' : 'Run Workflow'}
-        </button>
-      )}
+      <RunButton node={node} />
     </div>
   );
 }
@@ -149,18 +190,15 @@ function GenerationProps({ node }: { node: GenNode }) {
         <span className="field-label">Output</span>
         {out ? (
           <>
-            <a href={out.src} target="_blank" rel="noreferrer" title="Open full size">
-              <img className="insp-output" src={out.src} alt="Selected output" />
-            </a>
-            {out.provider === 'simulated' ? <p className="muted small">Simulated preview, no model was called. Add an OpenAI API key to generate real images.</p> : null}
-            <div className="insp-output-meta">
-              <span>
-                {out.width}×{out.height} · {d.model} · {new Date(out.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-              <a className="link-btn" href={out.src} download={out.name}>
-                <Download size={14} /> Download
+            <div className="insp-output-wrap">
+              <a href={out.src} target="_blank" rel="noreferrer" title="Open full size">
+                <img className="insp-output" src={out.src} alt="Selected output" />
+              </a>
+              <a className="icon-btn icon-btn--overlay" href={out.src} download={out.name} title="Download" aria-label="Download image">
+                <Download size={16} />
               </a>
             </div>
+            {out.provider === 'simulated' ? <p className="muted small">Simulated preview, no model was called. Add an OpenAI API key to generate real images.</p> : null}
             {d.outputs.length > 1 ? (
               <div className="versions">
                 {d.outputs.map((o, i) => (
@@ -261,10 +299,10 @@ function PromptProps({ node }: { node: PromptNode }) {
   );
 }
 
-function NodePanel({ node }: { node: AppNode }) {
+function NodeBody({ node }: { node: AppNode }) {
   const updateData = useBoard((s) => s.updateData);
   return (
-    <aside className="panel inspector" aria-label={`${node.data.title} properties`}>
+    <>
       <div className="insp-head">
         <NodeIconTile kind={node.type!} size="lg" />
         <div className="insp-head__text">
@@ -278,119 +316,92 @@ function NodePanel({ node }: { node: AppNode }) {
           <div className="insp-head__sub">{CATALOG[node.type!].label}</div>
         </div>
       </div>
-      <div className="inspector__scroll">
-        <div className="insp-body">
-          {node.type === 'prompt' ? <PromptProps node={node} /> : null}
-          {node.type === 'imageInput' ? <ImageInputProps node={node} /> : null}
-          {node.type === 'imageGeneration' ? <GenerationProps node={node} /> : null}
-        </div>
+      <div className="insp-body">
+        {node.type === 'prompt' ? <PromptProps node={node} /> : null}
+        {node.type === 'imageInput' ? <ImageInputProps node={node} /> : null}
+        {node.type === 'imageGeneration' ? <GenerationProps node={node} /> : null}
       </div>
-    </aside>
-  );
-}
-
-function WorkflowOverview() {
-  const provider = useBoard((s) => s.provider);
-  const nodes = useBoard((s) => s.nodes);
-  const edges = useBoard((s) => s.edges);
-  const select = useBoard((s) => s.select);
-  const spend = useBoard((s) => s.spend);
-  const setSettingsOpen = useBoard((s) => s.setSettingsOpen);
-  const issues = validateGraph(nodes, edges);
-  return (
-    <>
-      <dl className="stats">
-        <div>
-          <dt>Nodes</dt>
-          <dd>{nodes.length}</dd>
-        </div>
-        <div>
-          <dt>Connections</dt>
-          <dd>{edges.length}</dd>
-        </div>
-        <div>
-          <dt>Generations</dt>
-          <dd>{nodes.filter((n) => n.type === 'imageGeneration').length}</dd>
-        </div>
-      </dl>
-      <span className="field-label">Image provider</span>
-      {provider?.id === 'simulated' ? (
-        <p className="provider-hint">
-          <strong>Simulated.</strong> No model is called and nothing is charged. To generate real images,{' '}
-          <button className="inline-link" onClick={() => setSettingsOpen(true)}>
-            add your OpenAI API key in Account settings
-          </button>
-          .
-        </p>
-      ) : (
-        <p className="muted small">{provider ? `${provider.label}, using the API key on this computer.` : 'Unknown'}</p>
-      )}
-      <span className="field-label">Estimated spend</span>
-      <dl className="stats stats--two">
-        <div>
-          <dt>This workflow</dt>
-          <dd>{formatUsd(spend.board)}</dd>
-        </div>
-        <div>
-          <dt>Today, all workflows</dt>
-          <dd>{formatUsd(spend.today)}</dd>
-        </div>
-      </dl>
-      <p className="muted small">
-        Worked out from the tokens OpenAI reports and its published prices. Your{' '}
-        <a href="https://platform.openai.com/usage" target="_blank" rel="noreferrer">
-          OpenAI usage page
-        </a>{' '}
-        has the exact bill.
-      </p>
-      <span className="field-label">Before you run</span>
-      {issues.length ? (
-        <ul className="issues">
-          {issues.map((i, k) => (
-            <li key={k}>
-              <button onClick={() => select(i.nodeId)}>{i.message}</button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="muted small">{nodes.length ? 'Everything needed to run is connected.' : 'The board is empty.'}</p>
-      )}
-      <span className="field-label">Runs</span>
     </>
   );
 }
 
-/** Floating right-hand controls. Collapsed to the toolbar unless exactly one node is selected (or history is open). */
+const PAGE = 15;
+
+function HistoryBody({ node }: { node: AppNode | null }) {
+  const activity = useBoard((s) => s.activity);
+  const spend = useBoard((s) => s.spend);
+  const stats = node ? (spend.byNode[node.id] ?? { generations: 0, textUsd: 0, imageUsd: 0 }) : spend.all;
+  const entries = useMemo(() => (node ? activity.filter((a) => a.nodeId === node.id) : activity), [activity, node]);
+  const [shown, setShown] = useState(PAGE);
+  const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null);
+  // Reveal the next page when the end of the list scrolls into view.
+  useEffect(() => {
+    if (!sentinel) return;
+    const io = new IntersectionObserver((e) => e[0].isIntersecting && setShown((n) => n + PAGE), { rootMargin: '120px' });
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [sentinel, shown]);
+  return (
+    <>
+      <div className="insp-head insp-head--history">
+        <div className="insp-head__title insp-head__title--static">{node ? node.data.title : 'All nodes'}</div>
+        <div className="insp-head__sub insp-head__sub--right">Run History</div>
+      </div>
+      <div className="insp-body">
+        <dl className="stats ban">
+          <div>
+            <dt>Generations</dt>
+            <dd>{stats.generations}</dd>
+          </div>
+          <div>
+            <dt>Text spend</dt>
+            <dd>{formatUsd(stats.textUsd)}</dd>
+          </div>
+          <div>
+            <dt>Image spend</dt>
+            <dd>{formatUsd(stats.imageUsd)}</dd>
+          </div>
+        </dl>
+        <span className="field-label">Run log</span>
+        <ActivityList entries={entries.slice(0, shown)} />
+        {shown < entries.length ? <div ref={setSentinel} className="log-sentinel" aria-hidden /> : null}
+      </div>
+    </>
+  );
+}
+
+/**
+ * One floating panel: the toolbar is its fixed top row and the body drops down beneath it. The body opens for a single
+ * selected node or for run history, and folds away when nothing (or several nodes) is selected.
+ */
 export function Inspector() {
   const selected = useBoard(useShallow((s) => s.nodes.filter((n) => n.selected)));
-  const activity = useBoard((s) => s.activity);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyOpen = useBoard((s) => s.historyOpen);
+  const setHistoryOpen = useBoard((s) => s.setHistoryOpen);
   const node = selected.length === 1 ? selected[0] : null;
+  const multi = selected.length > 1;
+  useEffect(() => {
+    if (multi) setHistoryOpen(false);
+  }, [multi, setHistoryOpen]);
+  const kind: 'history' | 'node' | null = multi ? null : historyOpen ? 'history' : node ? 'node' : null;
+  // Keep the last content mounted while the body folds away.
+  const [last, setLast] = useState<{ kind: 'history' | 'node'; nodeId: string | null }>({ kind: 'node', nodeId: null });
+  const wanted = kind && { kind, nodeId: node?.id ?? last.nodeId };
+  if (wanted && (wanted.kind !== last.kind || (node && wanted.nodeId !== last.nodeId))) setLast({ kind: wanted.kind, nodeId: node?.id ?? last.nodeId });
+  const showKind = kind ?? last.kind;
+  const remembered = useBoard((s) => s.nodes.find((n) => n.id === last.nodeId) ?? null);
+  const bodyNode = showKind === 'node' ? (node ?? remembered) : node;
 
   return (
-    <div className="inspector-stack">
-      <Toolbar historyOpen={historyOpen} onToggleHistory={() => setHistoryOpen(!historyOpen)} node={node} />
-      {historyOpen ? (
-        <aside className="panel inspector" aria-label="Run history">
-          <div className="insp-head">
-            <div className="insp-head__text">
-              <div className="insp-head__title insp-head__title--static">Run history</div>
-              <div className="insp-head__sub">All nodes</div>
-            </div>
-            <button className="icon-btn icon-btn--sm" onClick={() => setHistoryOpen(false)} aria-label="Close history">
-              <X size={16} />
-            </button>
+    <aside className="panel rightbar" aria-label="Workflow controls">
+      <Toolbar historyOpen={historyOpen && !multi} onToggleHistory={() => setHistoryOpen(!historyOpen)} node={node} />
+      <div className={`rightbar__drop ${kind ? 'is-open' : ''}`} inert={!kind}>
+        <div className="rightbar__clip">
+          <div className="rightbar__scroll">
+            {showKind === 'history' ? <HistoryBody key={bodyNode?.id ?? 'all'} node={bodyNode} /> : bodyNode ? <NodeBody key={bodyNode.id} node={bodyNode} /> : null}
           </div>
-          <div className="inspector__scroll">
-            <div className="insp-body">
-              <WorkflowOverview />
-              <ActivityList entries={activity} />
-            </div>
-          </div>
-        </aside>
-      ) : node ? (
-        <NodePanel key={node.id} node={node} />
-      ) : null}
-    </div>
+        </div>
+      </div>
+    </aside>
   );
 }

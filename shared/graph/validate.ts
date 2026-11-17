@@ -127,9 +127,10 @@ export function validateGraph(nodes: AppNode[], edges: AppEdge[]): Issue[] {
 
 /**
  * Generation nodes that must run to produce `targetId` (or every generation
- * node when targetId is omitted), in dependency order.
+ * node when targetId is omitted), in dependency order. With upstream false only
+ * the target itself runs, using whatever its inputs last produced.
  */
-export function planRun(nodes: AppNode[], edges: AppEdge[], targetId?: string): string[] {
+export function planRun(nodes: AppNode[], edges: AppEdge[], targetId?: string, upstream = true): string[] {
   const gen = new Set(nodes.filter((n) => n.type === 'imageGeneration').map((n) => n.id));
   let wanted: Set<string>;
   if (targetId) {
@@ -139,7 +140,7 @@ export function planRun(nodes: AppNode[], edges: AppEdge[], targetId?: string): 
       const id = stack.pop()!;
       if (wanted.has(id)) continue;
       wanted.add(id);
-      for (const e of edges) if (e.target === id) stack.push(e.source);
+      if (upstream) for (const e of edges) if (e.target === id) stack.push(e.source);
     }
   } else {
     wanted = new Set(nodes.map((n) => n.id));

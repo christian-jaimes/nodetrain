@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid';
-import type { BoardRunState, NodeExecStatus, NodeExecutionView, RunStatusApi, RunView } from '../shared/api';
+import type { BoardRunState, NodeExecStatus, NodeExecutionView, RunStatusApi, RunView, SpendStats } from '../shared/api';
 import { fromDocument, migrateDocument } from '../shared/graph/document';
 import type { AppNode, ImageAsset, ImageGenerationNode } from '../shared/graph/types';
-import { estimateCost } from '../shared/graph/models';
+import { costBreakdown, estimateCost } from '../shared/graph/models';
 import { planRun, resolveInputs, runKey, validateNode, type OutputLookup } from '../shared/graph/validate';
 import type { ArtifactStore } from './artifacts';
 import { tx, type DB } from './db';
@@ -129,21 +129,33 @@ export class Orchestrator {
     const lastSucceeded: BoardRunState['lastSucceeded'] = {};
     const activity: NodeExecutionView[] = [];
     let boardSpend = 0;
+    const all: SpendStats = { generations: 0, textUsd: 0, imageUsd: 0 };
+    const byNode: Record<string, SpendStats> = {};
     for (const row of rows) {
       const view = this.execView(row);
       // History copied into a duplicate was paid for on the original board.
-      if (!row.copied) boardSpend += view.costUsd ?? 0;
+      if (!row.copied) {
+        boardSpend += view.costUsd ?? 0;
+        if (row.status === 'succeeded') {
+          const split = view.request && view.usage ? costBreakdown(view.request.model, view.usage) : undefined;
+          for (const s of [all, (byNode[row.node_id] ??= { generations: 0, textUsd: 0, imageUsd: 0 })]) {
+            s.generations += 1;
+            s.textUsd += split?.textUsd ?? 0;
+            s.imageUsd += split?.imageUsd ?? 0;
+          }
+        }
+      }
       if (!latest[row.node_id]) latest[row.node_id] = view;
       if (row.status === 'succeeded') {
         (outputs[row.node_id] ??= []).push(...view.outputs);
         lastSucceeded[row.node_id] ??= { runKey: view.runKey, endedAt: view.endedAt };
       }
-      if (activity.length < 100 && row.status !== 'queued' && row.status !== 'running') activity.push(view);
+      if (activity.length < 500 && row.status !== 'queued' && row.status !== 'running') activity.push(view);
     }
     const active = this.db.prepare(`SELECT id FROM runs WHERE board_id = ? AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1`).get(boardId) as
       | { id: string }
       | undefined;
-    return { outputs, latest, lastSucceeded, activeRunId: active?.id ?? null, activity, spend: { board: boardSpend, today: this.spendSince(startOfToday()) } };
+    return { outputs, latest, lastSucceeded, activeRunId: active?.id ?? null, activity, spend: { board: boardSpend, today: this.spendSince(startOfToday()), all, byNode } };
   }
 
   /** Estimated spend across all boards since a time. Board deletion keeps run history, so this includes deleted boards. */
@@ -165,7 +177,7 @@ export class Orchestrator {
 
   // ---------- Starting ----------
 
-  start(boardId: string, revision: number, targetNodeId?: string | null): RunView {
+  start(boardId: string, revision: number, targetNodeId?: string | null, upstream = true): RunView {
     const board = this.db.prepare('SELECT revision FROM boards WHERE id = ?').get(boardId) as { revision: number } | undefined;
     if (!board) throw new RunError('Board not found.', 404);
     if (board.revision !== revision) throw new RunError('The board changed since it was last saved. Save and try again.', 409);
@@ -174,7 +186,7 @@ export class Orchestrator {
 
     const { nodes, edges } = this.loadRevision(boardId, revision);
     if (targetNodeId && !nodes.some((n) => n.id === targetNodeId)) throw new RunError('That node is not on the saved board.', 400);
-    const order = planRun(nodes, edges, targetNodeId ?? undefined);
+    const order = planRun(nodes, edges, targetNodeId ?? undefined, upstream);
     if (!order.length) throw new RunError('Add an Image Generation node to run this workflow.', 400);
 
     const runId = nanoid(10);
