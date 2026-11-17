@@ -92,10 +92,11 @@ function Workspace() {
       {galleryOpen ? <div className="scrim" onClick={() => useBoard.getState().boardId && useBoard.getState().setGalleryOpen(false)} /> : null}
       <Sidebar ref={searchRef} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
       {open && !starting ? <TitleBar /> : null}
+      {/* Before the canvas in the DOM and at z-index 0, so the tips sit behind anything on the canvas, such as a node created while they show. */}
+      {open && !starting && !galleryOpen ? <HintBar key={boardId} /> : null}
       <Canvas />
       {loaded && starting ? <StartScreen /> : null}
       {open ? <Inspector /> : null}
-      {open && !starting && !galleryOpen ? <HintBar key={boardId} /> : null}
       <NodePicker />
       {templatesOpen ? <TemplatesModal /> : null}
       {settingsOpen ? <AccountSettings /> : null}

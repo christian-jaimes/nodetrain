@@ -1277,7 +1277,7 @@ input.insp-head__title:focus {
   bottom: 44px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 5;
+  z-index: 0;
   display: flex;
   align-items: center;
   gap: 8px;
