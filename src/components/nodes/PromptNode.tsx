@@ -1,8 +1,7 @@
 import type { NodeProps } from '@xyflow/react';
-import { CATALOG } from '../../../shared/graph/catalog';
 import type { PromptNode as PromptNodeType } from '../../../shared/graph/types';
 import { useBoard } from '../../store/board';
-import { NodeShell, Port } from './parts';
+import { NodeShell } from './parts';
 
 export function PromptNode({ id, data, selected }: NodeProps<PromptNodeType>) {
   const updateData = useBoard((s) => s.updateData);
@@ -12,7 +11,6 @@ export function PromptNode({ id, data, selected }: NodeProps<PromptNodeType>) {
       title={data.title}
       selected={selected}
       width={300}
-      action={<Port port={CATALOG.prompt.outputs[0]} side="out" />}
     >
       <label className="field-label" htmlFor={`prompt-${id}`}>
         Text

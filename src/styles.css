@@ -1060,11 +1060,55 @@ input.insp-head__title:focus {
   height: 12px;
   transform: translate(0, -50%) rotate(45deg);
 }
+/* Ports only appear once linked: inputs at the top-left, the output at the top-right. Nodes connect by dropping one onto another. */
+.nt-port.react-flow__handle.is-idle {
+  opacity: 0;
+  pointer-events: none;
+}
+.nt-port.react-flow__handle {
+  transition: opacity 0.15s;
+}
 .nt-node__header .nt-port.react-flow__handle {
+  top: 50%;
+}
+.nt-node__header .nt-port.react-flow__handle-left {
+  left: -8px;
+}
+.nt-node__header .nt-port.react-flow__handle-right {
   right: -8px;
 }
-.nt-node__header .nt-port--text.react-flow__handle {
+.nt-node__header .nt-port--text.react-flow__handle-left {
+  left: -7px;
+}
+.nt-node__header .nt-port--text.react-flow__handle-right {
   right: -7px;
+}
+.react-flow__node.drop-ok .nt-node {
+  border-color: var(--ok);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2), var(--shadow-node);
+}
+.react-flow__node.drop-bad .nt-node {
+  border-color: var(--err);
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.2), var(--shadow-node);
+}
+.edge-remove {
+  z-index: 10;
+  position: absolute;
+  pointer-events: all;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--node);
+  border: 1.5px solid var(--border);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.edge-remove:hover {
+  background: var(--err);
+  border-color: var(--err);
+  color: #fff;
 }
 .react-flow__handle.connectingto.valid,
 .react-flow__handle.valid {
@@ -1086,12 +1130,6 @@ input.insp-head__title:focus {
   gap: 8px;
   font-size: 12.5px;
   padding: 2px 0;
-}
-.port-row .nt-port.react-flow__handle {
-  left: -22px;
-}
-.port-row .nt-port--text.react-flow__handle {
-  left: -21px;
 }
 .port-row__label {
   font-weight: 600;
@@ -2383,4 +2421,9 @@ input.insp-head__title:focus {
   font-size: 11.5px;
   font-weight: 500;
   color: var(--text-3);
+}
+
+/* Keep the remove button on a link above the link's own click area. */
+.react-flow__edgelabel-renderer {
+  z-index: 1001;
 }

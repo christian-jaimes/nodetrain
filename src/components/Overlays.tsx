@@ -404,7 +404,7 @@ export function HintBar() {
   if (phase === 'gone') return null;
   return (
     <div className={`hintbar ${blank ? 'hintbar--center' : ''} ${phase === 'leaving' ? 'is-leaving' : ''}`} role="region" aria-label="Canvas tips">
-      <MousePointer2 size={15} /> Double-click to create node <span>·</span> Drag from a port to connect <span>·</span> V to select, H to move, Ctrl+G to group
+      <MousePointer2 size={15} /> Double-click to create node <span>·</span> Drop a node onto another to connect <span>·</span> V to select, H to move, Ctrl+G to group
     </div>
   );
 }

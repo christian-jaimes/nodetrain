@@ -1,12 +1,12 @@
 import type { NodeProps } from '@xyflow/react';
 import { Play, Sparkles } from 'lucide-react';
-import { CATALOG, aspectSize } from '../../../shared/graph/catalog';
+import { aspectSize } from '../../../shared/graph/catalog';
 import { ASPECT_RATIOS, IMAGE_MODEL_LIST, apiSize, formatDate, getModel, settingsIssues, shutdownNotice } from '../../../shared/graph/models';
 import type { ImageGenerationNode as GenNode } from '../../../shared/graph/types';
 import { isStale, resolveInputs } from '../../../shared/graph/validate';
 
 import { useBoard } from '../../store/board';
-import { ImageMosaic, NodeShell, Port, StatusChip } from './parts';
+import { ImageMosaic, NodeShell, StatusChip } from './parts';
 
 type Option = string | { value: string; label: string; disabled?: boolean };
 
@@ -98,7 +98,6 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
   const node = { id, data, type: 'imageGeneration', position: { x: 0, y: 0 } } as GenNode;
   const { inputs, status, connectedPrompts } = useGenerationState(node);
   const [pw, ph] = aspectSize(data.aspectRatio);
-  const [promptPort, refPort] = CATALOG.imageGeneration.inputs;
 
   return (
     <NodeShell
@@ -112,8 +111,7 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
         </div>
       }
       action={
-        <>
-          <button
+        <button
             className="run-btn nodrag"
             title="Run this node and anything it depends on"
             aria-label={`Run ${data.title}`}
@@ -122,19 +120,15 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
           >
             <Play size={15} fill="currentColor" />
           </button>
-          <Port port={CATALOG.imageGeneration.outputs[0]} side="out" />
-        </>
       }
     >
       <div className="port-row">
-        <Port port={promptPort} side="in" />
         <span className="port-row__label">Prompt</span>
         <span className="port-row__meta">
           {connectedPrompts ? `${connectedPrompts} connected` : 'Text · optional if written below'}
         </span>
       </div>
       <div className="port-row">
-        <Port port={refPort} side="in" />
         <span className="port-row__label">References</span>
         <span className="port-row__meta">{inputs.references.length ? `${inputs.references.length} image${inputs.references.length > 1 ? 's' : ''}` : 'Image · optional'}</span>
       </div>

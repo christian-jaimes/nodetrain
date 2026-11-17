@@ -3,12 +3,33 @@ import { CATALOG } from '../shared/graph/catalog';
 import { DOC_VERSION, fromDocument, migrateDocument, toDocument } from '../shared/graph/document';
 import type { AppEdge, AppNode, ImageAsset, ImageGenerationNode, NodeKind } from '../shared/graph/types';
 import { apiQuality, apiSize, estimateCost, formatUsd, settingsIssues, shutdownNotice } from '../shared/graph/models';
-import { checkConnection, isStale, planRun, resolveInputs, runKey, validateGraph } from '../shared/graph/validate';
+import { checkConnection, isStale, planDrop, planRun, resolveInputs, runKey, validateGraph } from '../shared/graph/validate';
 
 const node = (id: string, kind: NodeKind, patch: Record<string, unknown> = {}): AppNode =>
   ({ id, type: kind, position: { x: 0, y: 0 }, data: { ...CATALOG[kind].create(), ...patch } }) as AppNode;
 const edge = (source: string, target: string, sourceHandle: string, targetHandle: string): AppEdge => ({ id: `${source}-${target}-${targetHandle}`, source, target, sourceHandle, targetHandle });
 const img = (id: string): ImageAsset => ({ id, src: `/api/artifacts/${id}`, name: id, width: 10, height: 10, createdAt: 0 });
+
+describe('planDrop', () => {
+  const nodes = [node('p', 'prompt'), node('i', 'imageInput'), node('g1', 'imageGeneration'), node('g2', 'imageGeneration')];
+
+  it('picks the input that accepts the dropped node\'s output', () => {
+    const t = planDrop(nodes, [], 'p', 'g1');
+    expect(t.ok && t.connection.targetHandle).toBe('prompt');
+    const r = planDrop(nodes, [], 'i', 'g1');
+    expect(r.ok && r.connection.targetHandle).toBe('references');
+  });
+
+  it('explains why a drop is refused', () => {
+    const none = planDrop(nodes, [], 'g1', 'p');
+    expect(none.ok).toBe(false);
+    if (!none.ok) expect(none.reason).toMatch(/takes no inputs/);
+    expect(planDrop(nodes, [edge('p', 'g1', 'text', 'prompt')], 'p', 'g1').ok).toBe(false);
+    const loop = planDrop(nodes, [edge('g1', 'g2', 'image', 'references')], 'g2', 'g1');
+    expect(loop.ok).toBe(false);
+    if (!loop.ok) expect(loop.reason).toMatch(/loop/);
+  });
+});
 
 describe('checkConnection', () => {
   const nodes = [node('p', 'prompt'), node('i', 'imageInput'), node('g1', 'imageGeneration'), node('g2', 'imageGeneration')];
