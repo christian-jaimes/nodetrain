@@ -1,5 +1,5 @@
 import { useReactFlow } from '@xyflow/react';
-import { Check, ChevronDown, Download, Hand, History, Play, Redo2, Scan, Square, SquareDashedMousePointer, Trash2, Undo2, Upload } from 'lucide-react';
+import { ChevronDown, Download, Hand, History, Play, Redo2, Scan, Square, SquareDashedMousePointer, Trash2, Undo2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CATALOG } from '../../shared/graph/catalog';
@@ -12,7 +12,7 @@ import { exportWorkflow, useBoard } from '../store/board';
 import { NodeIconTile } from './icons';
 import { useImageImport } from './nodes/ImageInputNode';
 import { ModelSettings, useGenerationState } from './nodes/ImageGenerationNode';
-import { StatusChip } from './nodes/parts';
+import { OutputGallery, StatusChip } from './nodes/parts';
 
 function RunButton({ node }: { node: AppNode | null }) {
   const run = useBoard((s) => s.run);
@@ -221,42 +221,13 @@ function GenerationProps({ node }: { node: GenNode }) {
         <span className="field-label">Output</span>
         {d.outputs.length ? (
           <>
-            <div className="versions" role="group" aria-label="Output images">
-              {d.outputs.map((o, i) => {
-                const on = o.id === out?.id;
-                return (
-                  <button
-                    key={o.id}
-                    className={`version ${on ? 'is-active' : ''}`}
-                    onClick={() => selectOutput(node.id, on ? undefined : o.id)}
-                    aria-label={`Version ${d.outputs.length - i}`}
-                    aria-pressed={on}
-                    title={on ? 'Click to deselect' : 'Click to use only this image as the reference'}
-                  >
-                    <img src={o.thumb ?? o.src} alt="" />
-                    <span>v{d.outputs.length - i}</span>
-                    {on ? (
-                      <i className="version__check" aria-hidden>
-                        <Check size={12} strokeWidth={3} />
-                      </i>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
+            <OutputGallery images={d.outputs} selectedId={d.selectedOutputId} onSelect={(oid) => selectOutput(node.id, oid)} alt={() => 'Output'} />
             <p className="muted small">
               {out ? 'Only the selected image is used as a reference downstream. Click it again to use all.' : 'Select an image to use only it as a reference. With none selected, all are used.'}
             </p>
-            {out ? (
-              <div className="insp-output-wrap">
-                <a href={out.src} target="_blank" rel="noreferrer" title="Open full size">
-                  <img className="insp-output" src={out.src} alt="Selected output" />
-                </a>
-                <a className="icon-btn icon-btn--overlay" href={out.src} download={out.name} title="Download" aria-label="Download image">
-                  <Download size={16} />
-                </a>
-              </div>
-            ) : null}
+            <a className="secondary-btn" href={(out ?? d.outputs[0]).src} download={(out ?? d.outputs[0]).name}>
+              <Download size={15} /> Download {out ? 'selected' : 'latest'}
+            </a>
             {d.outputs.some((o) => o.provider === 'simulated') ? <p className="muted small">Simulated preview, no model was called. Add an OpenAI API key to generate real images.</p> : null}
           </>
         ) : (

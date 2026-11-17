@@ -3,10 +3,10 @@ import { Play, Sparkles } from 'lucide-react';
 import { aspectSize } from '../../../shared/graph/catalog';
 import { ASPECT_RATIOS, IMAGE_MODEL_LIST, apiSize, formatDate, getModel, settingsIssues, shutdownNotice } from '../../../shared/graph/models';
 import type { ImageGenerationNode as GenNode } from '../../../shared/graph/types';
-import { isStale, resolveInputs, selectedOutput } from '../../../shared/graph/validate';
+import { isStale, resolveInputs } from '../../../shared/graph/validate';
 
 import { useBoard } from '../../store/board';
-import { ImageMosaic, NodeShell } from './parts';
+import { NodeShell, OutputGallery } from './parts';
 
 type Option = string | { value: string; label: string; disabled?: boolean };
 
@@ -97,9 +97,8 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
   const node = { id, data, type: 'imageGeneration', position: { x: 0, y: 0 } } as GenNode;
   const { status } = useGenerationState(node);
   const [pw, ph] = aspectSize(data.aspectRatio);
-  // Show only the picked image when there is one, otherwise everything the node has made.
-  const picked = selectedOutput(node);
-  const shown = picked ? [picked] : data.outputs;
+  const selectOutput = useBoard((s) => s.selectOutput);
+  const shown = data.outputs;
 
   return (
     <NodeShell
@@ -125,7 +124,7 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
         style={shown.length ? undefined : { aspectRatio: `${pw} / ${ph}` }}
       >
         {shown.length ? (
-          <ImageMosaic images={shown} alt={() => `Output of ${data.title}`} />
+          <OutputGallery images={shown} selectedId={data.selectedOutputId} onSelect={(oid) => selectOutput(id, oid)} alt={() => `Output of ${data.title}`} />
         ) : (
           <div className="gen-output__empty">
             <Sparkles size={20} />

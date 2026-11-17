@@ -119,3 +119,61 @@ export function ImageMosaic({ images, alt }: { images: ImageAsset[]; alt?: (img:
     </div>
   );
 }
+
+/**
+ * Gallery of a node's generations: the selected image large (the newest when none is selected), every generation as a
+ * small thumbnail beneath it. Clicking a thumbnail selects it; clicking the selected one again clears the selection.
+ */
+export function OutputGallery({
+  images,
+  selectedId,
+  onSelect,
+  alt,
+}: {
+  images: ImageAsset[];
+  selectedId?: string;
+  onSelect: (id: string | undefined) => void;
+  alt?: (img: ImageAsset) => string;
+}) {
+  const picked = images.find((i) => i.id === selectedId);
+  const big = picked ?? images[0];
+  if (!big) return null;
+  return (
+    <div className="gallery">
+      <img
+        className="image-single"
+        src={big.src}
+        alt={alt ? alt(big) : big.name}
+        width={big.width}
+        height={big.height}
+        style={{ aspectRatio: `${big.width} / ${big.height}` }}
+        draggable={false}
+      />
+      {images.length > 1 ? (
+        <div className="gallery__thumbs nodrag nowheel" role="group" aria-label="Generations">
+          {images.map((img, i) => {
+            const on = img.id === picked?.id;
+            return (
+              <button
+                key={img.id}
+                type="button"
+                className={`gallery__thumb ${on ? 'is-active' : ''}`}
+                aria-pressed={on}
+                aria-label={`Version ${images.length - i}`}
+                title={on ? 'Click to deselect' : 'Click to use only this image as the reference'}
+                onClick={() => onSelect(on ? undefined : img.id)}
+              >
+                <img src={img.thumb ?? img.src} alt="" draggable={false} />
+                {on ? (
+                  <i className="version__check" aria-hidden>
+                    <Check size={12} strokeWidth={3} />
+                  </i>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
