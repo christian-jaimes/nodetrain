@@ -143,17 +143,17 @@ export function OutputGallery({
   if (!big) return null;
   return (
     // The gallery takes the same box a single image would, so the card keeps its size; the big image shrinks to make room for the strip.
-    <div className={`gallery gallery--${fit}`} style={fit === 'box' ? { aspectRatio: `${big.width} / ${big.height}` } : undefined}>
-      <img className="gallery__big" src={big.src} alt={alt ? alt(big) : big.name} draggable={false} />
+    <div className={`output-gallery output-gallery--${fit}`} style={fit === 'box' ? { aspectRatio: `${big.width} / ${big.height}` } : undefined}>
+      <img className="output-gallery__big" src={big.src} alt={alt ? alt(big) : big.name} draggable={false} />
       {images.length > 1 ? (
-        <div className="gallery__thumbs nodrag nowheel" role="group" aria-label="Generations">
+        <div className="output-gallery__thumbs nodrag nowheel" role="group" aria-label="Generations">
           {images.map((img, i) => {
             const on = img.id === picked?.id;
             return (
               <button
                 key={img.id}
                 type="button"
-                className={`gallery__thumb ${on ? 'is-active' : ''}`}
+                className={`output-gallery__thumb ${on ? 'is-active' : ''}`}
                 aria-pressed={on}
                 aria-label={`Version ${images.length - i}`}
                 title={on ? 'Click to deselect' : 'Click to use only this image as the reference'}
