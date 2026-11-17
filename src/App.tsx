@@ -20,7 +20,6 @@ function Workspace() {
   const templatesOpen = useBoard((s) => s.templatesOpen);
   const settingsOpen = useBoard((s) => s.settingsOpen);
   const [collapsed, setCollapsed] = useState(false);
-  const [tab, setTab] = useState<'properties' | 'activity'>('properties');
   const searchRef = useRef<HTMLInputElement>(null);
   const { fitView } = useReactFlow();
   const open = useBoard((s) => s.boardId !== null);
@@ -50,7 +49,8 @@ function Workspace() {
       }
       if (mod && e.key === 'Enter') {
         e.preventDefault();
-        void s.run();
+        const sel = s.nodes.filter((n) => n.selected);
+        void s.run(sel.length === 1 && sel[0].type === 'imageGeneration' ? sel[0].id : undefined);
         return;
       }
       if (isTyping(e)) return;
@@ -80,7 +80,7 @@ function Workspace() {
       {open ? <TitleBar /> : null}
       <Canvas />
       {loaded && starting ? <StartScreen /> : null}
-      {open && !starting ? <Inspector tab={tab} setTab={setTab} /> : null}
+      {open && !starting ? <Inspector /> : null}
       {open && !starting ? <HintBar /> : null}
       {open && !starting ? <ZoomControls /> : null}
       <NodePicker />

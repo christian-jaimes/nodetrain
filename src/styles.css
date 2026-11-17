@@ -401,69 +401,97 @@ button:disabled {
 }
 
 /* ---------- Inspector ---------- */
-.inspector {
+.inspector-stack {
+  position: absolute;
+  z-index: 10;
   top: 20px;
   right: 20px;
   bottom: 20px;
   width: 360px;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+.inspector-stack > * {
+  pointer-events: auto;
+}
+.inspector-stack .panel {
+  position: relative;
+  top: auto;
+  right: auto;
+}
+.inspector {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  transform-origin: top right;
+  animation: insp-in 0.2s ease-out;
+}
+@keyframes insp-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
 }
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 12px 12px 12px 14px;
-  border-bottom: 1px solid var(--border);
+  gap: 2px;
+  padding: 6px 6px 6px 8px;
+  border-radius: 14px;
 }
-.toolbar .primary-btn {
-  margin-left: auto;
+.toolbar__sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border-strong);
+  margin: 0 8px 0 6px;
 }
-.inspector__inner {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-.inspector__title {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0;
-  padding: 16px 18px 14px;
-  border-bottom: 1px solid var(--border);
+.toolbar .icon-btn.is-on {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
 }
 .insp-head {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 18px 6px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.insp-head__text {
+  flex: 1;
+  min-width: 0;
 }
 .insp-head__title {
+  display: block;
+  width: 100%;
+  font: inherit;
   font-size: 16px;
   font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+}
+input.insp-head__title:hover {
+  border-color: var(--border);
+}
+input.insp-head__title:focus {
+  border-color: var(--accent-hover);
+  background: var(--field);
+  outline: none;
+}
+.insp-head__title--static {
+  border-color: transparent;
 }
 .insp-head__sub {
   color: var(--text-2);
-  margin-top: 2px;
-}
-.tabs {
-  display: flex;
-  gap: 4px;
-  padding: 0 18px;
-  border-bottom: 1px solid var(--border);
-}
-.tabs button {
-  padding: 12px 10px;
-  color: var(--text-2);
-  font-weight: 500;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-}
-.tabs button.is-active {
-  color: var(--text);
-  font-weight: 600;
-  border-bottom-color: var(--accent);
+  margin-top: 4px;
 }
 .inspector__scroll {
   overflow-y: auto;
@@ -571,18 +599,39 @@ button:disabled {
   border-color: var(--accent);
 }
 .insp-images {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
-.insp-images figure {
-  margin: 0;
+.insp-images li {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.24s ease, opacity 0.2s ease, transform 0.24s ease;
+}
+.insp-images li + li .insp-images__row {
+  margin-top: 8px;
+}
+.insp-images li.is-removing {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateX(24px) scale(0.96);
+}
+.insp-images li.is-removing .insp-images__row {
+  margin-top: 0;
+  padding-block: 0;
+}
+.insp-images__row {
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 10px;
   background: var(--field);
   border-radius: var(--radius-field);
   padding: 6px;
+  font-size: 12.5px;
 }
 .insp-images img {
   width: 48px;
@@ -590,19 +639,19 @@ button:disabled {
   object-fit: cover;
   border-radius: 7px;
 }
-.insp-images figcaption {
+.insp-images__row span {
   flex: 1;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 12.5px;
-}
-.insp-images figcaption span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .insp-images li,
+  .inspector {
+    transition: none;
+    animation: none;
+  }
 }
 .stats {
   display: grid;

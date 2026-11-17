@@ -57,6 +57,15 @@ export function ModelSettings({ node, idPrefix }: { node: GenNode; idPrefix: str
   return (
     <>
       <Select id={`${idPrefix}-model`} label="Model" value={d.model} options={IMAGE_MODEL_LIST.map((m) => ({ value: m.id, label: m.shutdown ? `${m.id} (ends ${formatDate(m.shutdown.date)})` : m.id }))} onChange={changeModel} />
+      {issues.length ? (
+        <p className="node-warning" role="status">
+          {issues[0]}
+        </p>
+      ) : notice ? (
+        <p className="node-warning node-warning--soft" role="status">
+          {notice}
+        </p>
+      ) : null}
       <div className="field-row">
         <Select
           id={`${idPrefix}-aspect`}
@@ -67,15 +76,6 @@ export function ModelSettings({ node, idPrefix }: { node: GenNode; idPrefix: str
         />
         <Select id={`${idPrefix}-quality`} label="Quality" value={d.quality} options={model?.qualities ?? ['Default']} onChange={(v) => updateData(node.id, { quality: v })} />
       </div>
-      {issues.length ? (
-        <p className="node-warning" role="status">
-          {issues[0]}
-        </p>
-      ) : notice ? (
-        <p className="node-warning node-warning--soft" role="status">
-          {notice}
-        </p>
-      ) : null}
     </>
   );
 }
