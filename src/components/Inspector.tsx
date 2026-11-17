@@ -1,11 +1,12 @@
 import { useReactFlow } from '@xyflow/react';
-import { ChevronDown, Download, X, Hand, History, Play, Redo2, Scan, Square, SquareDashedMousePointer, Trash2, Undo2, Upload } from 'lucide-react';
+import { ChevronDown, Download, ImageDown, X, Hand, History, Play, Redo2, Scan, Square, SquareDashedMousePointer, Trash2, Undo2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { CATALOG } from '../../shared/graph/catalog';
 import { formatUsd } from '../../shared/graph/models';
 import { FIT_OPTIONS } from '../lib/ui';
+import { downloadImages, imagesToDownload } from '../lib/download';
 import type { AppNode, ImageGenerationNode as GenNode, ImageInputNode, PromptNode } from '../../shared/graph/types';
 import { TITLE_TOKEN, selectedOutput } from '../../shared/graph/validate';
 import type { NodeExecutionView } from '../../shared/api';
@@ -82,6 +83,19 @@ function Toolbar({ historyOpen, onToggleHistory, node }: { historyOpen: boolean;
   const tool = useBoard((s) => s.tool);
   const setTool = useBoard((s) => s.setTool);
   const { fitView } = useReactFlow();
+  const imageCount = useBoard((s) => imagesToDownload(s.nodes.filter((n) => n.selected)).length);
+  const boardName = useBoard((s) => s.name);
+  const [saving, setSaving] = useState(false);
+  const saveImages = async () => {
+    setSaving(true);
+    try {
+      await downloadImages(imagesToDownload(useBoard.getState().nodes.filter((n) => n.selected)), boardName);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <div className="toolbar" role="toolbar" aria-label="Workflow actions">
       <button
@@ -104,6 +118,11 @@ function Toolbar({ historyOpen, onToggleHistory, node }: { historyOpen: boolean;
       <button className={`icon-btn ${historyOpen ? 'is-on' : ''}`} onClick={onToggleHistory} aria-pressed={historyOpen} title="Run history" aria-label="Run history">
         <History size={18} />
       </button>
+      {imageCount ? (
+        <button className="icon-btn" onClick={() => void saveImages()} disabled={saving} title={`Download ${imageCount} image${imageCount === 1 ? '' : 's'} from the selected nodes${imageCount === 1 ? '' : ' (zip)'}`} aria-label={`Download images from selected nodes (${imageCount})`}>
+          <ImageDown size={18} />
+        </button>
+      ) : null}
       <button className="icon-btn" onClick={exportWorkflow} title="Export workflow as JSON" aria-label="Export workflow">
         <Download size={18} />
       </button>
