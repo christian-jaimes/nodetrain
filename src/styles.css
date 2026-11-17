@@ -16,6 +16,7 @@
   --accent-fill: #e11d2e;
   --accent-fill-hover: #c91728;
   --accent-soft: rgba(242, 41, 58, 0.14);
+  --accent-dim: rgba(242, 41, 41, 0.026);
   --accent-deep: #6e1820;
   --port-text: #b892ff;
   --port-image: #f2293a;
@@ -338,6 +339,9 @@ button:disabled {
   gap: 10px;
 }
 .titlebar__name {
+  /* Above the menu's click-away layer, so a double-click lands on the title itself. */
+  position: relative;
+  z-index: 41;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -390,6 +394,9 @@ button:disabled {
   padding: 9px 12px;
   border-radius: 8px;
 }
+.menu .is-danger {
+  color: var(--err);
+}
 .menu button:hover,
 .menu button:focus-visible {
   background: var(--field-hover);
@@ -404,7 +411,7 @@ button:disabled {
 .rightbar {
   top: 20px;
   right: 20px;
-  width: 400px;
+  width: 440px;
   max-height: calc(100% - 40px);
   display: flex;
   flex-direction: column;
@@ -1235,15 +1242,8 @@ input.insp-head__title:focus {
 
 /* ---------- React Flow overrides ---------- */
 .react-flow {
-  /* Transparent so the flickering grid behind the canvas shows through. */
+  /* Transparent so the app's solid background shows through. */
   --xy-background-color: transparent;
-}
-.canvas__grid {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
 }
 .react-flow__node {
   cursor: grab;
@@ -1289,34 +1289,33 @@ input.insp-head__title:focus {
 .hintbar span {
   color: var(--text-3);
 }
-.zoom {
-  position: absolute;
-  z-index: 9;
-  bottom: 20px;
-  left: 300px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+.hintbar--center {
+  bottom: auto;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
 }
-.is-collapsed .zoom {
-  left: 20px;
+.hintbar {
+  animation: hint-in 0.4s ease both;
 }
-.zoom button {
-  font-size: 16px;
+.hintbar.is-leaving {
+  animation: hint-out 0.5s ease both;
 }
-.zoom__value {
-  font-size: 12.5px !important;
-  min-width: 48px;
-  padding: 4px;
-  border-radius: 8px;
-  color: var(--text-2);
+@keyframes hint-in {
+  from {
+    opacity: 0;
+  }
 }
-.zoom__value:hover {
-  background: var(--field-hover);
+@keyframes hint-out {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hintbar,
+  .hintbar.is-leaving {
+    animation: none;
+  }
 }
 
 /* ---------- Start screen ---------- */
@@ -1555,13 +1554,6 @@ input.insp-head__title:focus {
   background: #33191c;
 }
 
-.react-flow__attribution {
-  background: transparent;
-  opacity: 0.5;
-}
-.react-flow__attribution a {
-  color: var(--text-3);
-}
 
 .activity__thumbs {
   display: flex;
@@ -1648,23 +1640,6 @@ input.insp-head__title:focus {
   border-radius: var(--radius-field);
 }
 
-.provider-pill {
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  color: var(--text-2);
-  cursor: help;
-}
-.provider-pill--simulated {
-  color: var(--warn);
-  border-color: rgba(251, 191, 36, 0.4);
-}
-.provider-pill--openai {
-  color: var(--ok);
-  border-color: rgba(74, 222, 128, 0.35);
-}
 .provider-hint {
   margin: -6px 0 0;
   font-size: 12.5px;
@@ -1851,11 +1826,6 @@ input.insp-head__title:focus {
 .secondary-btn--danger {
   align-self: flex-start;
   color: var(--err);
-}
-button.provider-pill {
-  font-family: inherit;
-  background: transparent;
-  cursor: pointer;
 }
 .inline-link {
   padding: 0;
@@ -2318,4 +2288,76 @@ button.provider-pill {
 .key-chip.is-on {
   color: var(--ok);
   background: rgba(74, 222, 128, 0.1);
+}
+
+/* ---------- Node groups ---------- */
+.group-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Behind the nodes, so they stay clickable. Only the container's own area is the drag handle. */
+  z-index: -1;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: grab;
+  touch-action: none;
+  pointer-events: auto;
+}
+.group-frame:active {
+  cursor: grabbing;
+}
+.group-frame.is-active {
+  /* Selected: the container dims so the nodes stand out. */
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.group-frame__title,
+.group-frame__input {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: text;
+}
+.group-frame__input {
+  background: var(--field);
+  border: 1px solid var(--border-strong);
+  outline: 0;
+  width: 200px;
+}
+.group-cta {
+  /* The canvas viewport ignores the pointer, so the button has to opt back in. */
+  pointer-events: auto;
+  z-index: 5;
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin-left: -80px;
+}
+.group-cta button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 600;
+}
+.group-cta button:hover {
+  border-color: var(--accent);
+}
+.group-cta kbd {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-3);
 }

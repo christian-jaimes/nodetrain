@@ -2,17 +2,19 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { del as idbDel, get as idbGet } from 'idb-keyval';
 import type { NodeChangeset, EdgeChangeset, XYPosition } from '@xyflow/react';
-import { EMPTY_SPEND, type BoardPayload, type BoardRunState, type BoardSummary, type NodeExecutionView, type Profile, type RunView } from '../../shared/api';
+import { EMPTY_SPEND, type BoardPayload, type BoardRunState, type BoardSummary, type NodeExecutionView, type Profile, type RunView, type UserTemplate } from '../../shared/api';
 import { CATALOG, getPort } from '../../shared/graph/catalog';
-import { fromDocument, migrateDocument, toDocument } from '../../shared/graph/document';
+import { cleanGroups, fromDocument, migrateDocument, toDocument } from '../../shared/graph/document';
 import { checkConnection, planRun, type CheckResult, type ConnectionLike } from '../../shared/graph/validate';
-import { RUN_FIELDS, type AppEdge, type AppNode, type ImageAsset, type ImageGenerationData, type NodeData, type NodeKind } from '../../shared/graph/types';
+import { RUN_FIELDS, type AppEdge, type AppNode, type ImageAsset, type ImageGenerationData, type NodeData, type NodeGroup, type NodeKind } from '../../shared/graph/types';
 import { ApiError, OfflineError, api, errorText } from '../lib/api';
 import { uploadDataUrl } from '../lib/images';
 import type { Template } from '../graph/templates';
 import { DEFAULT_GALLERY, type GalleryView } from '../lib/gallery';
 
-type Snapshot = { name: string; nodes: AppNode[]; edges: AppEdge[] };
+type Snapshot = { name: string; nodes: AppNode[]; edges: AppEdge[]; groups: NodeGroup[] };
+
+export type CanvasTool = 'move' | 'select';
 
 export type Toast = { id: string; text: string; tone: 'info' | 'error' };
 
@@ -42,6 +44,19 @@ type BoardState = {
   name: string;
   nodes: AppNode[];
   edges: AppEdge[];
+  groups: NodeGroup[];
+  /** Move: dragging empty canvas pans it. Select: dragging draws a box around the nodes to select. */
+  tool: CanvasTool;
+  setTool: (t: CanvasTool) => void;
+  /** Selects exactly these nodes. */
+  selectNodes: (ids: string[]) => void;
+  /** Groups the selected nodes (two or more). A node belongs to one group, so it leaves any earlier one. */
+  groupSelection: () => void;
+  /** Ungroups the group holding the selected nodes, or the one with this id. */
+  ungroup: (id?: string) => void;
+  renameGroup: (id: string, title: string) => void;
+  /** Shifts these nodes by a distance in canvas units. Used when a group's container is dragged. */
+  moveNodes: (ids: string[], dx: number, dy: number) => void;
   past: Snapshot[];
   future: Snapshot[];
   lastCommit: { key: string; at: number } | null;
@@ -58,6 +73,13 @@ type BoardState = {
   settingsOpen: boolean;
   busy: string | null;
   saveState: SaveState;
+  /** Counts completed saves, so the title bar can flash "Saved" after each one (and not when a workflow merely opens). */
+  savedTick: number;
+  userTemplates: UserTemplate[];
+  refreshTemplates: () => Promise<void>;
+  /** Saves the open workflow into the user's templates. */
+  saveAsTemplate: () => Promise<void>;
+  deleteTemplate: (id: string) => Promise<void>;
   saveError: string | null;
   toast: Toast | null;
   picker: PickerState | null;
@@ -113,7 +135,7 @@ const strip = (n: AppNode): AppNode => {
   const { selected: _s, dragging: _d, measured: _m, ...rest } = n;
   return rest as AppNode;
 };
-const snapshot = (s: BoardState): Snapshot => ({ name: s.name, nodes: s.nodes.map(strip), edges: s.edges.map((e) => ({ ...e, selected: false })) });
+const snapshot = (s: BoardState): Snapshot => ({ name: s.name, nodes: s.nodes.map(strip), edges: s.edges.map((e) => ({ ...e, selected: false })), groups: s.groups });
 
 /** Run results are evidence, not edits: undo/redo keeps the current ones. */
 function keepRunState(restored: AppNode[], current: AppNode[]): AppNode[] {
@@ -163,7 +185,7 @@ let initStarted = false;
 export const useBoard = create<BoardState>((set, get) => {
   const docJson = () => {
     const s = get();
-    return JSON.stringify({ name: s.name, doc: toDocument(s.nodes, s.edges) });
+    return JSON.stringify({ name: s.name, doc: toDocument(s.nodes, s.edges, s.groups) });
   };
 
   /** Saves the board if it changed. Concurrent callers share one request. */
@@ -182,9 +204,9 @@ export const useBoard = create<BoardState>((set, get) => {
     set({ saveState: 'saving' });
     saving = (async () => {
       try {
-        const saved = await api.saveBoard(s.boardId!, { name: s.name, baseRevision: s.revision, document: toDocument(s.nodes, s.edges) });
+        const saved = await api.saveBoard(s.boardId!, { name: s.name, baseRevision: s.revision, document: toDocument(s.nodes, s.edges, s.groups) });
         lastSavedJson = json;
-        set({ revision: saved.revision, saveState: docJson() === json ? 'saved' : 'saving', saveError: null, offline: false });
+        set({ revision: saved.revision, saveState: docJson() === json ? 'saved' : 'saving', saveError: null, offline: false, savedTick: get().savedTick + 1 });
       } catch (err) {
         set({ saveState: 'error', saveError: errorText(err), offline: err instanceof OfflineError });
         throw err;
@@ -252,7 +274,7 @@ export const useBoard = create<BoardState>((set, get) => {
   };
 
   const showBoard = (b: BoardPayload, state: BoardRunState, showStart = false) => {
-    const { nodes, edges } = fromDocument(b.document);
+    const { nodes, edges, groups } = fromDocument(b.document);
     pollToken++;
     set({
       galleryOpen: false,
@@ -261,6 +283,7 @@ export const useBoard = create<BoardState>((set, get) => {
       name: b.name,
       nodes: hydrate(nodes, state),
       edges,
+      groups,
       past: [],
       future: [],
       lastCommit: null,
@@ -311,6 +334,8 @@ export const useBoard = create<BoardState>((set, get) => {
     name: 'Untitled workflow',
     nodes: [],
     edges: [],
+    groups: [],
+    tool: 'move',
     past: [],
     future: [],
     lastCommit: null,
@@ -326,6 +351,8 @@ export const useBoard = create<BoardState>((set, get) => {
     settingsOpen: false,
     busy: null,
     saveState: 'idle',
+    savedTick: 0,
+    userTemplates: [],
     saveError: null,
     toast: null,
     picker: null,
@@ -345,14 +372,14 @@ export const useBoard = create<BoardState>((set, get) => {
       const s = get();
       const prev = s.past[s.past.length - 1];
       if (!prev) return;
-      set({ past: s.past.slice(0, -1), future: [snapshot(s), ...s.future], name: prev.name, nodes: keepRunState(prev.nodes, s.nodes), edges: prev.edges, lastCommit: null });
+      set({ past: s.past.slice(0, -1), future: [snapshot(s), ...s.future], name: prev.name, nodes: keepRunState(prev.nodes, s.nodes), edges: prev.edges, groups: prev.groups, lastCommit: null });
     },
 
     redo: () => {
       const s = get();
       const next = s.future[0];
       if (!next) return;
-      set({ future: s.future.slice(1), past: [...s.past, snapshot(s)], name: next.name, nodes: keepRunState(next.nodes, s.nodes), edges: next.edges, lastCommit: null });
+      set({ future: s.future.slice(1), past: [...s.past, snapshot(s)], name: next.name, nodes: keepRunState(next.nodes, s.nodes), edges: next.edges, groups: next.groups, lastCommit: null });
     },
 
     onNodesChange: (changes) => {
@@ -408,6 +435,47 @@ export const useBoard = create<BoardState>((set, get) => {
     setName: (name) => {
       get().commit('rename');
       set({ name: name.trim() || 'Untitled workflow' });
+    },
+
+    setTool: (tool) => set({ tool }),
+
+    selectNodes: (ids) => {
+      const want = new Set(ids);
+      set({ nodes: get().nodes.map((n) => ({ ...n, selected: want.has(n.id) })) });
+    },
+
+    groupSelection: () => {
+      const s = get();
+      const ids = s.nodes.filter((n) => n.selected).map((n) => n.id);
+      if (ids.length < 2) {
+        s.notify('Select two or more nodes to group them.');
+        return;
+      }
+      s.commit('group');
+      const moved = new Set(ids);
+      const rest = s.groups.map((g) => ({ ...g, nodeIds: g.nodeIds.filter((id) => !moved.has(id)) }));
+      set({ groups: cleanGroups([...rest, { id: nanoid(8), title: 'Group', nodeIds: ids }], s.nodes.map((n) => n.id)) });
+    },
+
+    ungroup: (id) => {
+      const s = get();
+      const selected = new Set(s.nodes.filter((n) => n.selected).map((n) => n.id));
+      const target = id ?? s.groups.find((g) => g.nodeIds.some((n) => selected.has(n)))?.id;
+      if (!target) return;
+      s.commit('ungroup');
+      set({ groups: s.groups.filter((g) => g.id !== target) });
+    },
+
+    moveNodes: (ids, dx, dy) => {
+      const want = new Set(ids);
+      set({ nodes: get().nodes.map((n) => (want.has(n.id) ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } } : n)) });
+    },
+
+    renameGroup: (id, title) => {
+      const t = title.trim().slice(0, 80);
+      if (!t) return;
+      get().commit(`group-name:${id}`);
+      set({ groups: get().groups.map((g) => (g.id === id ? { ...g, title: t } : g)) });
     },
 
     select: (id) => set({ nodes: get().nodes.map((n) => ({ ...n, selected: n.id === id })) }),
@@ -486,7 +554,7 @@ export const useBoard = create<BoardState>((set, get) => {
         await saveNow().catch(() => {});
         const built = await t.build();
         const cur = get();
-        const doc = toDocument(built.nodes, built.edges);
+        const doc = toDocument(built.nodes, built.edges, built.groups);
         // An untouched empty board is reused rather than left behind.
         const board =
           cur.boardId && cur.nodes.length === 0
@@ -594,10 +662,39 @@ export const useBoard = create<BoardState>((set, get) => {
           // No workflow open any more: back to the gallery.
           lastSavedJson = '';
           localStorage.removeItem(LAST_BOARD_KEY);
-          set({ boardId: null, nodes: [], edges: [], past: [], future: [], activity: [], running: false, activeRunId: null, showStart: false, galleryOpen: true, name: 'Untitled workflow', saveState: 'idle' });
+          set({ boardId: null, nodes: [], edges: [], groups: [], past: [], future: [], activity: [], running: false, activeRunId: null, showStart: false, galleryOpen: true, name: 'Untitled workflow', saveState: 'idle' });
         }
         await get().refreshBoards();
         get().notify('Workflow removed.');
+      } catch (err) {
+        get().notify(errorText(err), 'error');
+      }
+    },
+
+    refreshTemplates: async () => {
+      try {
+        set({ userTemplates: await api.listTemplates() });
+      } catch {
+        // The server banner already explains an unreachable server.
+      }
+    },
+
+    saveAsTemplate: async () => {
+      const s = get();
+      if (!s.boardId) return;
+      try {
+        await api.saveTemplate(s.name, toDocument(s.nodes, s.edges, s.groups));
+        await get().refreshTemplates();
+        get().notify(`Saved “${s.name}” to your templates.`);
+      } catch (err) {
+        get().notify(errorText(err), 'error');
+      }
+    },
+
+    deleteTemplate: async (id) => {
+      try {
+        await api.deleteTemplate(id);
+        await get().refreshTemplates();
       } catch (err) {
         get().notify(errorText(err), 'error');
       }
@@ -628,6 +725,7 @@ export const useBoard = create<BoardState>((set, get) => {
       try {
         const health = await api.health();
         set({ provider: { id: health.provider.id, label: health.provider.label } });
+        void get().refreshTemplates();
         void api.profile().then((profile) => set({ profile }), () => {});
         let board: BoardPayload | null = null;
         const lastId = localStorage.getItem(LAST_BOARD_KEY);
@@ -663,8 +761,8 @@ useBoard.subscribe((s, prev) => {
 });
 
 export function exportWorkflow() {
-  const { name, nodes, edges } = useBoard.getState();
-  const doc = { ...toDocument(nodes, edges), name, exportedAt: new Date().toISOString() };
+  const { name, nodes, edges, groups } = useBoard.getState();
+  const doc = { ...toDocument(nodes, edges, groups), name, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

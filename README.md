@@ -48,7 +48,7 @@ A prompt-only node uses OpenAI's image generation endpoint. A node with connecte
 ## What works
 
 - **Start screen** with *Blank workflow* or *Browse templates* (Product photography, Storyboard starter, Character exploration).
-- **Infinite canvas**: pan by dragging or scrolling, pinch or Ctrl+scroll to zoom, box-select with Shift+drag. A soft flickering dot grid sits behind it. It is decorative, ignores the pointer, and holds still when your system asks for reduced motion. Tune it in `src/components/Canvas.tsx`.
+- **Infinite canvas**: pan by dragging or scrolling, pinch or Ctrl+scroll to zoom, box-select with Shift+drag.
 - **Three MVP nodes**: Prompt, Image Input and Image Generation.
 - **Typed ports**: text ports are purple diamonds and image ports are red circles, each with a label and a tooltip. Incompatible connections and loops are refused, with a message saying why.
 - **Drag out of a port onto empty canvas** to open a filtered "Create connected node" picker. The node and its connection are created together, and Escape cancels both.
