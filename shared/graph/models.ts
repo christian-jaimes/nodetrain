@@ -33,42 +33,32 @@ export const IMAGE_MODEL_LIST: ImageModel[] = [
   { id: 'gpt-image-2.6-sunburst', label: 'GPT Image 2.6 Sunburst', customSizes: false, qualities: STANDARD_QUALITIES, prices: P_STANDARD },
   { id: 'gpt-image-2.5-flare', label: 'GPT Image 2.5 Flare', customSizes: true, qualities: EXTENDED_QUALITIES, prices: P_STANDARD },
   { id: 'gpt-image-2.5-sunburst', label: 'GPT Image 2.5 Sunburst', customSizes: true, qualities: EXTENDED_QUALITIES, prices: P_STANDARD },
-  {
-    id: 'gpt-image-2',
-    label: 'GPT Image 2',
-    customSizes: true,
-    qualities: STANDARD_QUALITIES,
-    // OpenAI no longer lists an image input price for it; the 2.x rate is assumed.
-    prices: P_STANDARD,
-    shutdown: { date: '2027-02-10', replacement: 'gpt-image-2.6-flare' },
-  },
-  {
-    id: 'gpt-image-1.5',
-    label: 'GPT Image 1.5',
-    customSizes: false,
-    qualities: STANDARD_QUALITIES,
-    prices: { textInput: 5, imageInput: 8, imageOutput: 32 },
-    shutdown: { date: '2026-12-01', replacement: 'gpt-image-2.6-flare' },
-  },
-  {
-    id: 'gpt-image-1-mini',
-    label: 'GPT Image 1 Mini',
-    customSizes: false,
-    qualities: STANDARD_QUALITIES,
-    prices: { textInput: 2, imageInput: 2.5, imageOutput: 8 },
-    shutdown: { date: '2026-12-01', replacement: 'gpt-image-2.6-flare' },
-  },
 ];
 
 /** Flare is OpenAI's fast everyday model; Sunburst is for precise edits. */
-export const DEFAULT_IMAGE_MODEL = 'gpt-image-2.6-flare';
+export const DEFAULT_IMAGE_MODEL = 'gpt-image-2.5-sunburst';
 
 /** Models that no longer work, and what boards using them are moved to. */
 export const RETIRED_MODELS: Record<string, string> = {
   'gpt-image-1': DEFAULT_IMAGE_MODEL, // shut down 2026-10-23
   'dall-e-2': DEFAULT_IMAGE_MODEL,
   'dall-e-3': DEFAULT_IMAGE_MODEL,
+  // Removed from the model list on 2026-11-17; boards using them move to the default.
+  'gpt-image-2': DEFAULT_IMAGE_MODEL,
+  'gpt-image-1.5': DEFAULT_IMAGE_MODEL,
+  'gpt-image-1-mini': DEFAULT_IMAGE_MODEL,
 };
+
+/** Prices of models no longer offered, so old runs in the history keep their original estimate. */
+const LEGACY_PRICES: Record<string, TokenPrices> = {
+  'gpt-image-2': P_STANDARD,
+  'gpt-image-1.5': { textInput: 5, imageInput: 8, imageOutput: 32 },
+  'gpt-image-1-mini': { textInput: 2, imageInput: 2.5, imageOutput: 8 },
+};
+
+function pricesFor(modelId: string): TokenPrices | undefined {
+  return getModel(modelId)?.prices ?? LEGACY_PRICES[modelId] ?? getModel(RETIRED_MODELS[modelId] ?? '')?.prices;
+}
 
 export const ASPECT_RATIOS = ['Default', '1:1', '3:2', '2:3', '16:9'];
 export const ALL_QUALITIES = ['Default', 'Low', 'Medium', 'High', 'Extra high', 'Max'];
@@ -135,24 +125,24 @@ export function shutdownNotice(modelId: string): string | undefined {
  * are ignored, so it errs slightly high. Undefined when there's nothing to price.
  */
 export function estimateCost(modelId: string, usage: Record<string, number> | undefined): number | undefined {
-  const m = getModel(modelId) ?? getModel(RETIRED_MODELS[modelId] ?? '');
-  if (!m || !usage) return undefined;
+  const prices = pricesFor(modelId);
+  if (!prices || !usage) return undefined;
   const out = usage.outputTokens ?? 0;
   const image = usage.inputImageTokens ?? 0;
   const text = usage.inputTextTokens ?? Math.max(0, (usage.inputTokens ?? 0) - image);
   if (!out && !text && !image) return undefined;
-  return (text * m.prices.textInput + image * m.prices.imageInput + out * m.prices.imageOutput) / 1_000_000;
+  return (text * prices.textInput + image * prices.imageInput + out * prices.imageOutput) / 1_000_000;
 }
 
 /** The same estimate split by what it paid for: text input, versus image input and output. */
 export function costBreakdown(modelId: string, usage: Record<string, number> | undefined): { textUsd: number; imageUsd: number } | undefined {
-  const m = getModel(modelId) ?? getModel(RETIRED_MODELS[modelId] ?? '');
-  if (!m || !usage) return undefined;
+  const prices = pricesFor(modelId);
+  if (!prices || !usage) return undefined;
   const out = usage.outputTokens ?? 0;
   const image = usage.inputImageTokens ?? 0;
   const text = usage.inputTextTokens ?? Math.max(0, (usage.inputTokens ?? 0) - image);
   if (!out && !text && !image) return undefined;
-  return { textUsd: (text * m.prices.textInput) / 1_000_000, imageUsd: (image * m.prices.imageInput + out * m.prices.imageOutput) / 1_000_000 };
+  return { textUsd: (text * prices.textInput) / 1_000_000, imageUsd: (image * prices.imageInput + out * prices.imageOutput) / 1_000_000 };
 }
 
 export function formatUsd(usd: number) {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CATALOG } from '../shared/graph/catalog';
 import { DOC_VERSION, fromDocument, migrateDocument, toDocument } from '../shared/graph/document';
 import type { AppEdge, AppNode, ImageAsset, ImageGenerationNode, NodeKind } from '../shared/graph/types';
-import { apiQuality, apiSize, estimateCost, formatUsd, settingsIssues, shutdownNotice } from '../shared/graph/models';
+import { apiQuality, apiSize, estimateCost, formatUsd, settingsIssues } from '../shared/graph/models';
 import { checkConnection, isStale, planDrop, planRun, resolveInputs, runKey, validateGraph } from '../shared/graph/validate';
 
 const node = (id: string, kind: NodeKind, patch: Record<string, unknown> = {}): AppNode =>
@@ -98,6 +98,13 @@ describe('inputs, validation and staleness', () => {
     expect(isStale(g, [p2, g], edges)).toBe(true);
   });
 
+  it('passes every upstream output as a reference when none is selected', () => {
+    const g1 = node('g1', 'imageGeneration', { outputs: [img('new'), img('old')] });
+    const g2 = node('g2', 'imageGeneration', { prompt: 'x' }) as ImageGenerationNode;
+    const r = resolveInputs(g2, [g1, g2], [edge('g1', 'g2', 'image', 'references')]);
+    expect(r.references.map((i) => i.id)).toEqual(['new', 'old']);
+  });
+
   it('passes the selected upstream output as a reference', () => {
     const g1 = node('g1', 'imageGeneration', { outputs: [img('new'), img('old')], selectedOutputId: 'old' });
     const g2 = node('g2', 'imageGeneration', { prompt: 'x' }) as ImageGenerationNode;
@@ -147,8 +154,17 @@ describe('board documents', () => {
       nodes: [{ id: 'g', type: 'imageGeneration', typeVersion: 1, position: { x: 0, y: 0 }, data: { title: 'G', prompt: '', model: 'gpt-image-1', aspectRatio: '1:1', quality: 'High' } }],
       edges: [],
     });
-    expect(doc.nodes[0].data.model).toBe('gpt-image-2.6-flare');
-    expect(doc.nodes[0].typeVersion).toBe(2);
+    expect(doc.nodes[0].data.model).toBe('gpt-image-2.5-sunburst');
+    expect(doc.nodes[0].typeVersion).toBe(3);
+  });
+
+  it('moves boards off models removed from the list', () => {
+    const doc = migrateDocument({
+      version: 1,
+      nodes: [{ id: 'g', type: 'imageGeneration', typeVersion: 2, position: { x: 0, y: 0 }, data: { title: 'G', prompt: '', model: 'gpt-image-2', aspectRatio: '1:1', quality: 'High' } }],
+      edges: [],
+    });
+    expect(doc.nodes[0].data.model).toBe('gpt-image-2.5-sunburst');
   });
 
   it('drops edges whose nodes are gone', () => {
@@ -159,27 +175,22 @@ describe('board documents', () => {
 
 describe('model settings', () => {
   it('maps aspect ratios and qualities to API values', () => {
-    expect(apiSize('gpt-image-2', '16:9')).toBe('1536x864');
-    expect(apiSize('gpt-image-1.5', '16:9')).toBeUndefined();
-    expect(apiSize('gpt-image-1.5', 'Default')).toBe('auto');
+    expect(apiSize('gpt-image-2.5-sunburst', '16:9')).toBe('1536x864');
+    expect(apiSize('gpt-image-2.6-flare', '16:9')).toBeUndefined();
+    expect(apiSize('gpt-image-2.6-flare', 'Default')).toBe('auto');
     expect(apiQuality('Extra high')).toBe('xhigh');
   });
 
   it('explains unsupported combinations', () => {
-    expect(settingsIssues('gpt-image-2', '16:9', 'High')).toEqual([]);
-    expect(settingsIssues('gpt-image-1.5', '16:9', 'Max')).toHaveLength(2);
+    expect(settingsIssues('gpt-image-2.5-sunburst', '16:9', 'High')).toEqual([]);
+    expect(settingsIssues('gpt-image-2.6-flare', '16:9', 'Max')).toHaveLength(2);
     expect(settingsIssues('dall-e-3', '1:1', 'Default')[0]).toMatch(/retired/);
     expect(settingsIssues('gpt-image-2.6-flare', '16:9', 'Default')).toHaveLength(1);
   });
 
-  it('warns about announced shutdowns', () => {
-    expect(shutdownNotice('gpt-image-1.5')).toBe('OpenAI shuts down gpt-image-1.5 on Dec 1, 2026. Switch to gpt-image-2.6-flare.');
-    expect(shutdownNotice('gpt-image-2.6-flare')).toBeUndefined();
-  });
-
   it('estimates cost from token usage', () => {
     // 1,000 image tokens in at $2.50/M + 4,000 out at $8/M
-    expect(estimateCost('gpt-image-1-mini', { inputTokens: 1000, inputImageTokens: 1000, outputTokens: 4000 })).toBeCloseTo(0.0345, 6);
+    expect(estimateCost('gpt-image-1-mini' /* removed model, priced from history */, { inputTokens: 1000, inputImageTokens: 1000, outputTokens: 4000 })).toBeCloseTo(0.0345, 6);
     // Without a text/image split, the rest of input counts as text.
     expect(estimateCost('gpt-image-2.6-flare', { inputTokens: 200, outputTokens: 0 })).toBeCloseTo(0.001, 6);
     expect(estimateCost('gpt-image-2.6-flare', undefined)).toBeUndefined();

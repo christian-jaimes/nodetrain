@@ -3,7 +3,7 @@ import type { BoardRunState, NodeExecStatus, NodeExecutionView, RunStatusApi, Ru
 import { fromDocument, migrateDocument } from '../shared/graph/document';
 import type { AppNode, ImageAsset, ImageGenerationNode } from '../shared/graph/types';
 import { costBreakdown, estimateCost } from '../shared/graph/models';
-import { planRun, resolveInputs, runKey, validateNode, type OutputLookup } from '../shared/graph/validate';
+import { planRun, resolveInputs, runKey, validateNode, MAX_REFERENCES, type OutputLookup } from '../shared/graph/validate';
 import type { ArtifactStore } from './artifacts';
 import { tx, type DB } from './db';
 import { ProviderError, type ImageProvider } from './providers/types';
@@ -166,13 +166,17 @@ export class Orchestrator {
     return total;
   }
 
-  /** Latest successful output of a node across all runs, used when its board holds no selection. */
-  private latestOutput(boardId: string, nodeId: string): ImageAsset | undefined {
-    const row = this.db
-      .prepare(`SELECT output_ids FROM node_executions WHERE board_id = ? AND node_id = ? AND status = 'succeeded' ORDER BY ended_at DESC LIMIT 1`)
-      .get(boardId, nodeId) as { output_ids: string } | undefined;
-    const ids = row ? (JSON.parse(row.output_ids) as string[]) : [];
-    return ids.length ? this.artifacts.get(ids[0]) : undefined;
+  /** Outputs of a node across all successful runs, newest first, used when its board holds no selection. */
+  private priorOutputs(boardId: string, nodeId: string): ImageAsset[] {
+    const rows = this.db
+      .prepare(`SELECT output_ids FROM node_executions WHERE board_id = ? AND node_id = ? AND status = 'succeeded' ORDER BY ended_at DESC LIMIT ?`)
+      .all(boardId, nodeId, MAX_REFERENCES) as { output_ids: string }[];
+    const out: ImageAsset[] = [];
+    for (const r of rows) for (const id of JSON.parse(r.output_ids) as string[]) {
+      const a = this.artifacts.get(id);
+      if (a) out.push(a);
+    }
+    return out.slice(0, MAX_REFERENCES);
   }
 
   // ---------- Starting ----------
@@ -263,12 +267,14 @@ export class Orchestrator {
     const execs = this.db.prepare('SELECT * FROM node_executions WHERE run_id = ? ORDER BY seq').all(runId) as ExecRow[];
 
     // Outputs produced earlier in this run take precedence for downstream nodes.
-    const produced = new Map<string, ImageAsset>();
+    const produced = new Map<string, ImageAsset[]>();
     const failed = new Set<string>();
     const outputOf: OutputLookup = (n) => {
-      if (produced.has(n.id)) return produced.get(n.id);
+      const made = produced.get(n.id);
+      if (made) return made;
+      // The picked output, or with none picked, everything the node has made.
       const sel = n.data.selectedOutputId ? this.artifacts.get(n.data.selectedOutputId) : undefined;
-      return sel ?? this.latestOutput(run.board_id, n.id);
+      return sel ? [sel] : this.priorOutputs(run.board_id, n.id);
     };
     const controller = new AbortController();
     this.controllers.set(runId, controller);
@@ -312,7 +318,7 @@ export class Orchestrator {
     nodes: AppNode[],
     edges: { source: string; target: string; targetHandle?: string | null }[],
     outputOf: OutputLookup,
-    produced: Map<string, ImageAsset>,
+    produced: Map<string, ImageAsset[]>,
     failed: Set<string>,
     signal: AbortSignal,
   ) {
@@ -347,7 +353,8 @@ export class Orchestrator {
         );
       }
       if (!assets.length) throw new ProviderError('The provider returned no images.', 'outage', true);
-      produced.set(node.id, assets[0]);
+      // A new run clears the pick, so everything the node has made is passed on, this run's images first.
+      produced.set(node.id, [...assets, ...this.priorOutputs(ex.board_id, node.id)].slice(0, MAX_REFERENCES));
       this.setExec(ex.id, {
         status: 'succeeded',
         output_ids: JSON.stringify(assets.map((a) => a.id)),

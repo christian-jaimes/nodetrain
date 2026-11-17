@@ -105,7 +105,8 @@ type BoardState = {
   /** With a target, upstream=false runs only that node and reuses what its inputs last produced. */
   run: (targetId?: string, upstream?: boolean) => Promise<void>;
   cancelRun: () => void;
-  selectOutput: (nodeId: string, outputId: string) => void;
+  /** Picks the image passed downstream, or clears the pick (undefined) so every image is passed. */
+  selectOutput: (nodeId: string, outputId: string | undefined) => void;
   loadTemplate: (t: Template) => Promise<void>;
   newBlank: () => Promise<void>;
   openBoard: (id: string) => Promise<void>;
@@ -232,7 +233,7 @@ export const useBoard = create<BoardState>((set, get) => {
       else if (ex.status === 'succeeded') {
         const known = new Set(n.data.outputs.map((o) => o.id));
         const fresh = ex.outputs.filter((o) => !known.has(o.id));
-        // Clearing the selection shows the newest output, the same rule the server uses.
+        // Clearing the pick passes every output downstream, the same rule the server uses.
         patchNode(ex.nodeId, {
           status: 'succeeded',
           error: undefined,

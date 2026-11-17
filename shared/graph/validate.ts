@@ -85,19 +85,28 @@ export type ResolvedInputs = {
   references: ImageAsset[];
 };
 
+/** The one output the user picked, if any. */
 export function selectedOutput(n: ImageGenerationNode): ImageAsset | undefined {
   const d = n.data;
-  return d.outputs.find((o) => o.id === d.selectedOutputId) ?? d.outputs[0];
+  return d.selectedOutputId ? d.outputs.find((o) => o.id === d.selectedOutputId) : undefined;
+}
+
+export const MAX_REFERENCES = 16;
+
+/** What a generation node passes downstream: the picked output, or with none picked, every output (newest first). */
+export function referenceOutputs(n: ImageGenerationNode): ImageAsset[] {
+  const sel = selectedOutput(n);
+  return sel ? [sel] : n.data.outputs.slice(0, MAX_REFERENCES);
 }
 
 function incoming(edges: AppEdge[], nodeId: string, handle: string) {
   return edges.filter((e) => e.target === nodeId && e.targetHandle === handle);
 }
 
-/** Looks up the image a generation node currently passes downstream. */
-export type OutputLookup = (node: ImageGenerationNode) => ImageAsset | undefined;
+/** Looks up the images a generation node currently passes downstream. */
+export type OutputLookup = (node: ImageGenerationNode) => ImageAsset[];
 
-export function resolveInputs(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = selectedOutput): ResolvedInputs {
+export function resolveInputs(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = referenceOutputs): ResolvedInputs {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const promptParts: ResolvedInputs['promptParts'] = [];
   for (const e of incoming(edges, node.id, 'prompt')) {
@@ -111,15 +120,14 @@ export function resolveInputs(node: ImageGenerationNode, nodes: AppNode[], edges
     const src = byId.get(e.source);
     if (src?.type === 'imageInput') references.push(...src.data.images);
     if (src?.type === 'imageGeneration') {
-      const img = outputOf(src);
-      if (img) references.push(img);
+      references.push(...outputOf(src));
     }
   }
   return { promptParts, prompt: promptParts.map((p) => p.text).join('\n\n'), references };
 }
 
 /** Fingerprint used to tell whether an output is out of date. */
-export function runKey(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = selectedOutput): string {
+export function runKey(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = referenceOutputs): string {
   const r = resolveInputs(node, nodes, edges, outputOf);
   const d = node.data;
   return JSON.stringify([r.prompt, r.references.map((i) => i.id), d.model, d.aspectRatio, d.quality]);
@@ -132,7 +140,7 @@ export function isStale(node: ImageGenerationNode, nodes: AppNode[], edges: AppE
 
 export type Issue = { nodeId: string; message: string; detail: string };
 
-export function validateNode(node: AppNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = selectedOutput): Issue[] {
+export function validateNode(node: AppNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = referenceOutputs): Issue[] {
   if (node.type !== 'imageGeneration') return [];
   const r = resolveInputs(node, nodes, edges, outputOf);
   const issues: Issue[] = [];
@@ -140,7 +148,7 @@ export function validateNode(node: AppNode, nodes: AppNode[], edges: AppEdge[], 
   for (const detail of settingsIssues(node.data.model, node.data.aspectRatio, node.data.quality)) {
     issues.push({ nodeId: node.id, message: `${node.data.title}: ${detail}`, detail });
   }
-  if (r.references.length > 16) issues.push({ nodeId: node.id, message: `${node.data.title}: too many reference images.`, detail: 'Too many reference images (max 16).' });
+  if (r.references.length > MAX_REFERENCES) issues.push({ nodeId: node.id, message: `${node.data.title}: too many reference images.`, detail: `Too many reference images (max ${MAX_REFERENCES}).` });
   return issues;
 }
 

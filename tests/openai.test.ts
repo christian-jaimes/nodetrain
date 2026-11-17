@@ -67,7 +67,7 @@ describe('OpenAIProvider', () => {
 
   it('refuses settings the model cannot honour without calling the API', async () => {
     const { fn, calls } = mockFetch([]);
-    await expect(provider(fn).generateImage(req({ model: 'gpt-image-1.5' }))).rejects.toMatchObject({ category: 'unsupported' });
+    await expect(provider(fn).generateImage(req({ model: 'gpt-image-2.6-flare', aspectRatio: '16:9' }))).rejects.toMatchObject({ category: 'unsupported' });
     expect(calls).toHaveLength(0);
   });
 

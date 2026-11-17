@@ -13,7 +13,7 @@ export function NodeShell({
   action,
   children,
   width,
-  status,
+  hideSubtitle,
 }: {
   kind: NodeKind;
   title: string;
@@ -21,7 +21,8 @@ export function NodeShell({
   action?: ReactNode;
   children: ReactNode;
   width: number;
-  status?: ReactNode;
+  /** Leave out the node type line under the name. */
+  hideSubtitle?: boolean;
 }) {
   return (
     <div className={`nt-node ${selected ? 'is-selected' : ''}`} style={{ width }}>
@@ -29,7 +30,7 @@ export function NodeShell({
         <NodeIconTile kind={kind} />
         <div className="nt-node__titles">
           <div className="nt-node__title">{title}</div>
-          <div className="nt-node__subtitle">{CATALOG[kind].label}</div>
+          {hideSubtitle ? null : <div className="nt-node__subtitle">{CATALOG[kind].label}</div>}
         </div>
         {action}
         {CATALOG[kind].inputs.map((p, i) => (
@@ -39,7 +40,6 @@ export function NodeShell({
           <Port key={p.id} port={p} side="out" />
         ))}
       </div>
-      {status}
       <div className="nt-node__body">{children}</div>
     </div>
   );
@@ -89,7 +89,7 @@ export function StatusChip({ status }: { status: RunStatus | 'stale' }) {
 }
 
 /** One image fills the width at its own aspect ratio; several become a mosaic of at most 4 tiles, the 4th reading "+N more". */
-export function ImageMosaic({ images, alt }: { images: ImageAsset[]; alt?: (img: ImageAsset) => string }) {
+export function ImageMosaic({ images, alt, onPick }: { images: ImageAsset[]; alt?: (img: ImageAsset) => string; onPick?: (id: string) => void }) {
   const first = images[0];
   if (!first) return null;
   const label = (img: ImageAsset) => (alt ? alt(img) : img.name);
@@ -113,9 +113,63 @@ export function ImageMosaic({ images, alt }: { images: ImageAsset[]; alt?: (img:
   return (
     <div className={`image-grid image-grid--${tiles.length + (more ? 1 : 0)}`} style={{ aspectRatio: String(ratio) }}>
       {tiles.map((img) => (
-        <img key={img.id} src={img.thumb ?? img.src} alt={label(img)} draggable={false} />
+        <img key={img.id} src={img.thumb ?? img.src} alt={label(img)} draggable={false} className={onPick ? 'is-pickable' : undefined} title={onPick ? 'Click to use only this image' : undefined} onClick={onPick ? () => onPick(img.id) : undefined} />
       ))}
       {more > 0 && <span className="image-grid__more">+{more} more</span>}
+    </div>
+  );
+}
+
+/**
+ * Gallery of a node's generations: the selected image large (the newest when none is selected), every generation as a
+ * small thumbnail beneath it. Clicking a thumbnail selects it; clicking the selected one again clears the selection.
+ */
+export function OutputGallery({
+  images,
+  selectedId,
+  onSelect,
+  alt,
+  fit = 'box',
+}: {
+  /** 'box': keep the area a single image would take (crops slightly to make room for the strip). 'natural': image at its own ratio. */
+  fit?: 'box' | 'natural';
+  images: ImageAsset[];
+  selectedId?: string;
+  onSelect: (id: string | undefined) => void;
+  alt?: (img: ImageAsset) => string;
+}) {
+  const picked = images.find((i) => i.id === selectedId);
+  const big = picked ?? images[0];
+  if (!big) return null;
+  return (
+    // The gallery takes the same box a single image would, so the card keeps its size; the big image shrinks to make room for the strip.
+    <div className={`output-gallery output-gallery--${fit}`} style={fit === 'box' ? { aspectRatio: `${big.width} / ${big.height}` } : undefined}>
+      <img className="output-gallery__big" src={big.src} alt={alt ? alt(big) : big.name} draggable={false} />
+      {images.length > 1 ? (
+        <div className="output-gallery__thumbs nodrag nowheel" role="group" aria-label="Generations">
+          {images.map((img, i) => {
+            const on = img.id === picked?.id;
+            return (
+              <button
+                key={img.id}
+                type="button"
+                className={`output-gallery__thumb ${on ? 'is-active' : ''}`}
+                aria-pressed={on}
+                aria-label={`Version ${images.length - i}`}
+                title={on ? 'Click to deselect' : 'Click to use only this image as the reference'}
+                onClick={() => onSelect(on ? undefined : img.id)}
+              >
+                <img src={img.thumb ?? img.src} alt="" draggable={false} />
+                {on ? (
+                  <i className="version__check" aria-hidden>
+                    <Check size={12} strokeWidth={3} />
+                  </i>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
