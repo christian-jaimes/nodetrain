@@ -78,11 +78,11 @@ function Workspace() {
     <div className={`app ${collapsed ? 'is-collapsed' : ''}`}>
       {/* DOM order is the Tab order: sidebar, title, canvas, inspector. Panels float above the canvas by z-index. */}
       {galleryOpen ? <div className="scrim" onClick={() => useBoard.getState().boardId && useBoard.getState().setGalleryOpen(false)} /> : null}
-      <Sidebar ref={searchRef} collapsed={collapsed || starting} onToggle={() => setCollapsed(!collapsed)} />
-      {open ? <TitleBar /> : null}
+      <Sidebar ref={searchRef} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+      {open && !starting ? <TitleBar /> : null}
       <Canvas />
       {loaded && starting ? <StartScreen /> : null}
-      {open && !starting ? <Inspector /> : null}
+      {open ? <Inspector /> : null}
       {open && !starting ? <HintBar /> : null}
       {open && !starting ? <ZoomControls /> : null}
       <NodePicker />

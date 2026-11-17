@@ -1331,6 +1331,10 @@ input.insp-head__title:focus {
   background: var(--canvas);
   text-align: center;
 }
+.start h1,
+.start > p {
+  pointer-events: none;
+}
 .start h1 {
   font-size: 38px;
   letter-spacing: -0.02em;
