@@ -137,7 +137,8 @@ export function StartScreen() {
   const setShowStart = useBoard((s) => s.setShowStart);
   const setTemplatesOpen = useBoard((s) => s.setTemplatesOpen);
   return (
-    <main className="start">
+    // Clicking the empty space around the cards means "just give me a blank canvas".
+    <main className="start" onClick={(e) => e.target === e.currentTarget && setShowStart(false)}>
       <h1>Create your workflow</h1>
       <p>Start from a blank canvas or use a template to build faster.</p>
       <div className="start__cards">

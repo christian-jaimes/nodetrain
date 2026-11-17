@@ -27,6 +27,11 @@ function Workspace() {
   const galleryOpen = useBoard((s) => s.galleryOpen);
   const starting = open && showStart && empty;
 
+  // Opening the start page folds the sidebar into its bar; the user can expand it again.
+  useEffect(() => {
+    if (starting) setCollapsed(true);
+  }, [starting]);
+
   useEffect(() => {
     void useBoard.getState().init();
   }, []);
@@ -85,11 +90,11 @@ function Workspace() {
     <div className={`app ${collapsed ? 'is-collapsed' : ''}`}>
       {/* DOM order is the Tab order: sidebar, title, canvas, inspector. Panels float above the canvas by z-index. */}
       {galleryOpen ? <div className="scrim" onClick={() => useBoard.getState().boardId && useBoard.getState().setGalleryOpen(false)} /> : null}
-      <Sidebar ref={searchRef} collapsed={collapsed || starting} onToggle={() => setCollapsed(!collapsed)} />
-      {open ? <TitleBar /> : null}
+      <Sidebar ref={searchRef} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+      {open && !starting ? <TitleBar /> : null}
       <Canvas />
       {loaded && starting ? <StartScreen /> : null}
-      {open && !starting ? <Inspector /> : null}
+      {open ? <Inspector /> : null}
       {open && !starting && !galleryOpen ? <HintBar key={boardId} /> : null}
       <NodePicker />
       {templatesOpen ? <TemplatesModal /> : null}
