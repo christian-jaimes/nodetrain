@@ -5,7 +5,7 @@ import { CATALOG } from '../../../shared/graph/catalog';
 import type { ImageInputNode as ImageInputNodeType } from '../../../shared/graph/types';
 import { importImage } from '../../lib/images';
 import { useBoard } from '../../store/board';
-import { NodeShell, Port } from './parts';
+import { ImageMosaic, NodeShell, Port } from './parts';
 
 export function useImageImport(nodeId: string) {
   const notify = useBoard((s) => s.notify);
@@ -28,11 +28,6 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
   const [dragOver, setDragOver] = useState(false);
   const importFiles = useImageImport(id);
   const images = data.images;
-  const first = images[0];
-  const tiles = images.length > 4 ? images.slice(0, 3) : images;
-  const more = images.length > 4 ? images.length - 3 : 0;
-  // Card height follows the first image's shape; clamped so the mosaic never gets extreme.
-  const ratio = first ? Math.min(1.4, Math.max(0.75, first.width / first.height)) : 1;
 
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer.files.length) return;
@@ -79,28 +74,13 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
       >
-        {!first ? (
+        {images.length === 0 ? (
           <button className="image-empty nodrag" onClick={() => fileRef.current?.click()}>
             <ImagePlus size={22} />
             <span>Drop images or click to upload</span>
           </button>
-        ) : images.length === 1 ? (
-          <img
-            className="image-single"
-            src={first.thumb ?? first.src}
-            alt={first.name}
-            width={first.width}
-            height={first.height}
-            style={{ aspectRatio: `${first.width} / ${first.height}` }}
-            draggable={false}
-          />
         ) : (
-          <div className={`image-grid image-grid--${tiles.length + (more ? 1 : 0)}`} style={{ aspectRatio: String(ratio) }}>
-            {tiles.map((img) => (
-              <img key={img.id} src={img.thumb ?? img.src} alt={img.name} draggable={false} />
-            ))}
-            {more > 0 && <span className="image-grid__more">+{more} more</span>}
-          </div>
+          <ImageMosaic images={images} />
         )}
       </div>
     </NodeShell>

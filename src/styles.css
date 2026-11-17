@@ -1220,11 +1220,14 @@ input.insp-head__title:focus {
   background: var(--field);
   border: 1px solid var(--border);
 }
-.gen-output img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.gen-output.has-images {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.gen-output.has-images .gen-output__shimmer {
+  border-radius: 12px;
 }
 .gen-output.is-stale img {
   opacity: 0.55;
@@ -1254,16 +1257,6 @@ input.insp-head__title:focus {
   to {
     background-position: -200% 0;
   }
-}
-.gen-output__count {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 2px 8px;
-  border-radius: 999px;
 }
 
 /* ---------- React Flow overrides ---------- */
