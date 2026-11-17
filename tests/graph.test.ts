@@ -3,7 +3,7 @@ import { CATALOG } from '../shared/graph/catalog';
 import { DOC_VERSION, fromDocument, migrateDocument, toDocument } from '../shared/graph/document';
 import type { AppEdge, AppNode, ImageAsset, ImageGenerationNode, NodeKind } from '../shared/graph/types';
 import { apiQuality, apiSize, estimateCost, formatUsd, settingsIssues } from '../shared/graph/models';
-import { checkConnection, isStale, planDrop, planRun, resolveInputs, runKey, validateGraph } from '../shared/graph/validate';
+import { checkConnection, fillTitleToken, isStale, planDrop, planRun, resolveInputs, runKey, validateGraph } from '../shared/graph/validate';
 
 const node = (id: string, kind: NodeKind, patch: Record<string, unknown> = {}): AppNode =>
   ({ id, type: kind, position: { x: 0, y: 0 }, data: { ...CATALOG[kind].create(), ...patch } }) as AppNode;
@@ -196,5 +196,33 @@ describe('model settings', () => {
     expect(estimateCost('gpt-image-2.6-flare', undefined)).toBeUndefined();
     expect(estimateCost('nope', { outputTokens: 5 })).toBeUndefined();
     expect([formatUsd(0), formatUsd(0.004), formatUsd(0.3005)]).toEqual(['$0.00', '<$0.01', '$0.30']);
+  });
+});
+
+describe('<node title> in prompts', () => {
+  it('is replaced by the name of the generation node being run, in its own and connected prompts', () => {
+    const p = node('p', 'prompt', { title: 'Style', text: 'A <node title> in watercolor' });
+    const g = node('g', 'imageGeneration', { title: 'Fox', prompt: 'Photo of a <Node Title>, studio light' });
+    const r = resolveInputs(g as ImageGenerationNode, [p, g], [edge('p', 'g', 'text', 'prompt')]);
+    expect(r.prompt).toBe('A Fox in watercolor\n\nPhoto of a Fox, studio light');
+  });
+
+  it('changes the run fingerprint when the name changes, so the output shows as out of date', () => {
+    const g = (title: string) => node('g', 'imageGeneration', { title, prompt: 'A <node title>' }) as ImageGenerationNode;
+    expect(runKey(g('Fox'), [g('Fox')], [])).not.toBe(runKey(g('Owl'), [g('Owl')], []));
+    expect(fillTitleToken('no token here', 'Fox')).toBe('no token here');
+  });
+});
+
+describe('templates keep the workflow as built', () => {
+  it('round-trips nodes, positions, prompts, models and connections', () => {
+    const p = { ...node('p', 'prompt', { title: 'Style', text: 'Warm light' }), position: { x: 10, y: 20 } } as AppNode;
+    const g = { ...node('g', 'imageGeneration', { title: 'Fox', prompt: 'A fox', model: 'gpt-image-2.5-flare', aspectRatio: '16:9', quality: 'High' }), position: { x: 500, y: 40 } } as AppNode;
+    const doc = migrateDocument(JSON.parse(JSON.stringify(toDocument([p, g], [edge('p', 'g', 'text', 'prompt')]))));
+    const back = fromDocument(doc);
+    expect(back.nodes.map((n) => n.position)).toEqual([{ x: 10, y: 20 }, { x: 500, y: 40 }]);
+    expect(back.nodes[0].data).toMatchObject({ title: 'Style', text: 'Warm light' });
+    expect(back.nodes[1].data).toMatchObject({ title: 'Fox', prompt: 'A fox', model: 'gpt-image-2.5-flare', aspectRatio: '16:9', quality: 'High' });
+    expect(back.edges).toHaveLength(1);
   });
 });

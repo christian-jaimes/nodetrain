@@ -2,11 +2,12 @@ import { ViewportPortal, useReactFlow } from '@xyflow/react';
 import { useMemo, useRef, useState, type PointerEvent } from 'react';
 import { cleanGroups } from '../../shared/graph/document';
 import type { AppNode } from '../../shared/graph/types';
+import { NODE_WIDTH } from '../lib/ui';
 import { useBoard } from '../store/board';
 
 const PAD = 28;
 const HEADER = 44;
-const FALLBACK = { w: 300, h: 160 };
+const FALLBACK = { w: NODE_WIDTH, h: 160 };
 
 type Box = { x: number; y: number; w: number; h: number };
 

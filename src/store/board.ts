@@ -62,7 +62,8 @@ type BoardState = {
   past: Snapshot[];
   future: Snapshot[];
   lastCommit: { key: string; at: number } | null;
-  clipboard: { nodes: AppNode[]; edges: AppEdge[] } | null;
+  /** `links` are connections between a copied node and a node that was not copied; pasting keeps them. */
+  clipboard: { nodes: AppNode[]; edges: AppEdge[]; links: AppEdge[] } | null;
   activity: NodeExecutionView[];
   /** Estimated spend, from BoardRunState. */
   spend: BoardRunState['spend'];
@@ -233,12 +234,12 @@ export const useBoard = create<BoardState>((set, get) => {
       else if (ex.status === 'succeeded') {
         const known = new Set(n.data.outputs.map((o) => o.id));
         const fresh = ex.outputs.filter((o) => !known.has(o.id));
-        // Clearing the pick passes every output downstream, the same rule the server uses.
+        // The newest image is picked by default; the pick can still be cleared to pass every output downstream.
         patchNode(ex.nodeId, {
           status: 'succeeded',
           error: undefined,
           outputs: [...fresh, ...n.data.outputs],
-          ...(fresh.length ? { selectedOutputId: undefined } : {}),
+          ...(fresh.length ? { selectedOutputId: fresh[0].id } : {}),
           lastRunKey: ex.runKey,
           lastRunAt: ex.endedAt,
         });
@@ -492,7 +493,13 @@ export const useBoard = create<BoardState>((set, get) => {
       const nodes = s.nodes.filter((n) => n.selected).map(strip);
       if (!nodes.length) return;
       const ids = new Set(nodes.map((n) => n.id));
-      set({ clipboard: { nodes, edges: s.edges.filter((e) => ids.has(e.source) && ids.has(e.target)) } });
+      set({
+        clipboard: {
+          nodes,
+          edges: s.edges.filter((e) => ids.has(e.source) && ids.has(e.target)),
+          links: s.edges.filter((e) => ids.has(e.source) !== ids.has(e.target)),
+        },
+      });
       s.notify(`Copied ${nodes.length} node${nodes.length > 1 ? 's' : ''}.`);
     },
 
@@ -508,8 +515,17 @@ export const useBoard = create<BoardState>((set, get) => {
         return { ...n, id, data, selected: true, position: { x: n.position.x + 48, y: n.position.y + 48 } } as AppNode;
       });
       const edges = s.clipboard.edges.map((e) => ({ ...e, id: nanoid(8), source: map.get(e.source)!, target: map.get(e.target)! }));
+      // The copy keeps the original's connections to nodes that were not copied, as long as those nodes still exist.
+      const exists = new Set(s.nodes.map((n) => n.id));
+      const links = s.clipboard.links
+        .filter((e) => exists.has(map.has(e.source) ? e.target : e.source))
+        .map((e) => ({ ...e, id: nanoid(8), selected: false, source: map.get(e.source) ?? e.source, target: map.get(e.target) ?? e.target }));
       s.commit();
-      set({ nodes: [...s.nodes.map((n) => ({ ...n, selected: false })), ...nodes], edges: [...s.edges, ...edges], clipboard: { nodes: nodes.map(strip), edges } });
+      set({
+        nodes: [...s.nodes.map((n) => ({ ...n, selected: false })), ...nodes],
+        edges: [...s.edges.map((e) => ({ ...e, selected: false })), ...edges, ...links],
+        clipboard: { nodes: nodes.map(strip), edges, links },
+      });
     },
 
     duplicateSelection: () => {
@@ -690,7 +706,10 @@ export const useBoard = create<BoardState>((set, get) => {
       const s = get();
       if (!s.boardId) return;
       try {
-        await api.saveTemplate(s.name, toDocument(s.nodes, s.edges, s.groups));
+        // Settings, prompts, positions and connections stay. The picked output is dropped: a template carries no generated images.
+        const doc = toDocument(s.nodes, s.edges, s.groups);
+        for (const n of doc.nodes) delete n.data.selectedOutputId;
+        await api.saveTemplate(s.name, doc);
         await get().refreshTemplates();
         get().notify(`Saved “${s.name}” to your templates.`);
       } catch (err) {

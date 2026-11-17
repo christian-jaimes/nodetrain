@@ -1,12 +1,13 @@
 import { useReactFlow } from '@xyflow/react';
-import { ChevronDown, Download, Hand, History, Play, Redo2, Scan, Square, SquareDashedMousePointer, Trash2, Undo2, Upload } from 'lucide-react';
+import { ChevronDown, Download, X, Hand, History, Play, Redo2, Scan, Square, SquareDashedMousePointer, Trash2, Undo2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { CATALOG } from '../../shared/graph/catalog';
 import { formatUsd } from '../../shared/graph/models';
 import { FIT_OPTIONS } from '../lib/ui';
 import type { AppNode, ImageGenerationNode as GenNode, ImageInputNode, PromptNode } from '../../shared/graph/types';
-import { selectedOutput } from '../../shared/graph/validate';
+import { TITLE_TOKEN, selectedOutput } from '../../shared/graph/validate';
 import type { NodeExecutionView } from '../../shared/api';
 import { exportWorkflow, useBoard } from '../store/board';
 import { NodeIconTile } from './icons';
@@ -128,42 +129,171 @@ const STATUS_LABEL: Record<NodeExecutionView['status'], string> = {
   running: 'Running',
 };
 
-function ActivityList({ entries }: { entries: NodeExecutionView[] }) {
+function ActivityList({ entries, onOpen }: { entries: NodeExecutionView[]; onOpen: (a: NodeExecutionView) => void }) {
   if (!entries.length) return <p className="muted small">No runs yet. Press Run to generate.</p>;
   return (
     <ol className="activity">
       {entries.map((a) => (
-        <li key={a.id} className={`activity__item activity__item--${a.status}`}>
-          <div className="activity__top">
-            <strong>{a.nodeTitle}</strong>
-            <span>{a.endedAt ? new Date(a.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}</span>
-          </div>
-          <div className="activity__msg">
-            <span className="activity__status">{STATUS_LABEL[a.status]}</span>
-            {' · '}
-            {a.status === 'succeeded'
-              ? `${a.outputs.length} image${a.outputs.length === 1 ? '' : 's'} from ${a.request?.model ?? 'model'}${a.request?.provider === 'simulated' ? ' (simulated)' : ''}`
-              : a.error}
-          </div>
-          {a.status === 'succeeded' && a.outputs.length ? (
-            <div className="activity__thumbs">
-              {a.outputs.map((o) => (
-                <img key={o.id} src={o.thumb ?? o.src} alt="" />
-              ))}
+        <li key={a.id}>
+          <button type="button" className={`activity__item activity__item--${a.status}`} onClick={() => onOpen(a)} aria-haspopup="dialog" title="Show the details of this run">
+            <div className="activity__top">
+              <strong>{a.nodeTitle}</strong>
+              <span>{a.endedAt ? new Date(a.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}</span>
             </div>
-          ) : null}
-          {a.usage?.totalTokens ? (
+            <div className="activity__msg">
+              <span className="activity__status">{STATUS_LABEL[a.status]}</span>
+              {' · '}
+              {a.status === 'succeeded'
+                ? `${a.outputs.length} image${a.outputs.length === 1 ? '' : 's'} from ${a.request?.model ?? 'model'}${a.request?.provider === 'simulated' ? ' (simulated)' : ''}`
+                : a.error}
+            </div>
+            {a.status === 'succeeded' && a.outputs.length ? (
+              <div className="activity__thumbs">
+                {a.outputs.map((o) => (
+                  <img key={o.id} src={o.thumb ?? o.src} alt="" />
+                ))}
+              </div>
+            ) : null}
+            {a.usage?.totalTokens ? <div className="activity__run">{formatTokens(a.usage, a.costUsd)}</div> : null}
             <div className="activity__run">
-              {formatTokens(a.usage, a.costUsd)}
+              Run {a.runId}
+              {a.startedAt && a.endedAt ? ` · ${((a.endedAt - a.startedAt) / 1000).toFixed(1)}s` : ''}
             </div>
-          ) : null}
-          <div className="activity__run">
-            Run {a.runId}
-            {a.startedAt && a.endedAt ? ` · ${((a.endedAt - a.startedAt) / 1000).toFixed(1)}s` : ''}
-          </div>
+          </button>
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Everything about one run of a node: what was sent, with which settings, and what came back. */
+function RunDetail({ entry: a, onClose }: { entry: NodeExecutionView; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const r = a.request;
+  const when = (t?: number) => (t ? new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'medium' }) : '—');
+  const seconds = a.startedAt && a.endedAt ? `${((a.endedAt - a.startedAt) / 1000).toFixed(1)} s` : '—';
+  const parts = r?.promptParts ?? [];
+  return createPortal(
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal modal--run" role="dialog" aria-modal="true" aria-labelledby="run-detail-title" onClick={(e) => e.stopPropagation()}>
+        <div className="modal__head">
+          <div>
+            <h2 id="run-detail-title">{a.nodeTitle}</h2>
+            <p>
+              <span className={`run-pill run-pill--${a.status}`}>{STATUS_LABEL[a.status]}</span> · Run {a.runId}
+            </p>
+          </div>
+          <button className="icon-btn" onClick={onClose} aria-label="Close" autoFocus>
+            <X size={20} />
+          </button>
+        </div>
+        <div className="run-detail">
+          {a.error ? (
+            <p className="node-error" role="alert">
+              {a.error}
+            </p>
+          ) : null}
+          <section>
+            <h3>Prompt used</h3>
+            {r?.prompt ? <pre className="run-detail__prompt">{r.prompt}</pre> : <p className="muted small">No prompt was recorded for this run.</p>}
+            {parts.length > 1 ? (
+              <details className="run-detail__parts">
+                <summary>Made from {parts.length} parts</summary>
+                <ol>
+                  {parts.map((p, i) => (
+                    <li key={i}>
+                      <span className="small muted">{p.from}</span>
+                      <pre className="run-detail__prompt">{p.text}</pre>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            ) : null}
+          </section>
+          <section>
+            <h3>Settings</h3>
+            <dl className="run-detail__facts">
+              <div>
+                <dt>Model</dt>
+                <dd>{r?.model ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Aspect ratio</dt>
+                <dd>{r?.aspectRatio ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Quality</dt>
+                <dd>{r?.quality ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Provider</dt>
+                <dd>{r?.provider === 'simulated' ? 'Simulated (no model called)' : (r?.provider ?? '—')}</dd>
+              </div>
+            </dl>
+          </section>
+          <section>
+            <h3>Inputs</h3>
+            {r?.references?.length ? (
+              <ul className="run-detail__thumbs" aria-label="Reference images">
+                {r.references.map((img) => (
+                  <li key={img.id}>
+                    <a href={img.src} target="_blank" rel="noreferrer" title={img.name}>
+                      <img src={img.thumb ?? img.src} alt={img.name} />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : r?.referenceIds?.length ? (
+              <p className="muted small">{r.referenceIds.length} reference image{r.referenceIds.length === 1 ? '' : 's'}.</p>
+            ) : (
+              <p className="muted small">No reference images.</p>
+            )}
+          </section>
+          <section>
+            <h3>Outputs</h3>
+            {a.outputs.length ? (
+              <ul className="run-detail__thumbs run-detail__thumbs--big" aria-label="Output images">
+                {a.outputs.map((o) => (
+                  <li key={o.id}>
+                    <a href={o.src} target="_blank" rel="noreferrer" title="Open full size">
+                      <img src={o.thumb ?? o.src} alt={o.name} />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted small">No images were produced.</p>
+            )}
+          </section>
+          <section>
+            <h3>Cost and time</h3>
+            <dl className="run-detail__facts">
+              <div>
+                <dt>Estimated cost</dt>
+                <dd>{a.costUsd !== undefined ? `≈ ${formatUsd(a.costUsd)}` : '—'}</dd>
+              </div>
+              <div>
+                <dt>Tokens</dt>
+                <dd>{a.usage?.totalTokens ? formatTokens(a.usage) : '—'}</dd>
+              </div>
+              <div>
+                <dt>Started</dt>
+                <dd>{when(a.startedAt)}</dd>
+              </div>
+              <div>
+                <dt>Duration</dt>
+                <dd>{seconds}</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -189,7 +319,7 @@ function GenLastRun({ node }: { node: GenNode }) {
 function GenerationProps({ node }: { node: GenNode }) {
   const selectOutput = useBoard((s) => s.selectOutput);
   const updateData = useBoard((s) => s.updateData);
-  const { inputs, connectedPrompts } = useGenerationState(node);
+  const { connectedPrompts } = useGenerationState(node);
   const out = selectedOutput(node);
   const d = node.data;
   return (
@@ -207,8 +337,7 @@ function GenerationProps({ node }: { node: GenNode }) {
           onChange={(e) => updateData(node.id, { prompt: e.target.value })}
         />
         <p className="muted small">
-          {connectedPrompts ? `${connectedPrompts} prompt${connectedPrompts > 1 ? 's' : ''} connected` : 'No prompt connected'} ·{' '}
-          {inputs.references.length ? `${inputs.references.length} reference image${inputs.references.length > 1 ? 's' : ''}` : 'No reference images'}
+          Type <code>{TITLE_TOKEN}</code> to use this node&apos;s name in the prompt.
         </p>
       </div>
       <ModelSettings node={node} idPrefix="i" />
@@ -308,6 +437,9 @@ function PromptProps({ node }: { node: PromptNode }) {
           Prompt
         </label>
         <textarea id="i-text" className="nt-textarea" rows={8} value={node.data.text} onChange={(e) => updateData(node.id, { text: e.target.value })} />
+        <p className="muted small">
+          Type <code>{TITLE_TOKEN}</code> to insert the name of the Image Generation node that runs this prompt.
+        </p>
       </div>
     </>
   );
@@ -353,6 +485,9 @@ function HistoryBody({ node }: { node: AppNode | null }) {
   const stats = node ? (spend.byNode[node.id] ?? { generations: 0, textUsd: 0, imageUsd: 0 }) : spend.all;
   const entries = useMemo(() => (node ? activity.filter((a) => a.nodeId === node.id) : activity), [activity, node]);
   const [shown, setShown] = useState(PAGE);
+  // Keep the id, not the entry, so the details stay current if the run is still going.
+  const [open, setOpen] = useState<string | null>(null);
+  const openEntry = open ? activity.find((a) => a.id === open) : undefined;
   const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null);
   // Reveal the next page when the end of the list scrolls into view.
   useEffect(() => {
@@ -383,8 +518,9 @@ function HistoryBody({ node }: { node: AppNode | null }) {
           </div>
         </dl>
         <span className="field-label">Run log</span>
-        <ActivityList entries={entries.slice(0, shown)} />
+        <ActivityList entries={entries.slice(0, shown)} onOpen={(a) => setOpen(a.id)} />
         {shown < entries.length ? <div ref={setSentinel} className="log-sentinel" aria-hidden /> : null}
+        {openEntry ? <RunDetail entry={openEntry} onClose={() => setOpen(null)} /> : null}
       </div>
     </>
   );

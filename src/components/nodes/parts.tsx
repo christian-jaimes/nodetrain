@@ -1,38 +1,91 @@
 import { Handle, Position, useNodeId } from '@xyflow/react';
 import { CircleDashed, Check, Clock, LoaderCircle, RefreshCw, TriangleAlert } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { CATALOG, PORT_TYPE_LABEL } from '../../../shared/graph/catalog';
 import type { ImageAsset, NodeKind, PortDef, RunStatus } from '../../../shared/graph/types';
+import { NODE_WIDTH } from '../../lib/ui';
 import { useBoard } from '../../store/board';
 import { NodeIconTile } from '../icons';
 
+/** The node name. Double-click it on the canvas to rename: Enter or clicking away saves, Escape cancels. */
+export function EditableTitle({ nodeId, title }: { nodeId: string; title: string }) {
+  const updateData = useBoard((s) => s.updateData);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const done = useRef(false);
+
+  const finish = (save: boolean) => {
+    if (done.current) return;
+    done.current = true;
+    const next = draft.trim().slice(0, 80);
+    if (save && next && next !== title) updateData(nodeId, { title: next }, `title:${nodeId}`);
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <div
+        className="nt-node__title"
+        title="Double-click to rename"
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          done.current = false;
+          setDraft(title);
+          setEditing(true);
+        }}
+      >
+        {title}
+      </div>
+    );
+  }
+  return (
+    <input
+      className="nt-node__title-input nodrag nowheel"
+      aria-label="Node name"
+      autoFocus
+      maxLength={80}
+      value={draft}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => finish(true)}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') finish(true);
+        if (e.key === 'Escape') finish(false);
+      }}
+    />
+  );
+}
+
+/**
+ * The card every node uses. Header: icon, then name (editable) over node type, then whatever the node puts on the
+ * right (status, run button). All cards share one width.
+ */
 export function NodeShell({
+  id,
   kind,
   title,
   selected,
   action,
   children,
-  width,
-  hideSubtitle,
 }: {
+  id: string;
   kind: NodeKind;
   title: string;
   selected?: boolean;
   action?: ReactNode;
   children: ReactNode;
-  width: number;
-  /** Leave out the node type line under the name. */
-  hideSubtitle?: boolean;
 }) {
   return (
-    <div className={`nt-node ${selected ? 'is-selected' : ''}`} style={{ width }}>
+    <div className={`nt-node ${selected ? 'is-selected' : ''}`} style={{ width: NODE_WIDTH }}>
       <div className="nt-node__header">
         <NodeIconTile kind={kind} />
         <div className="nt-node__titles">
-          <div className="nt-node__title">{title}</div>
-          {hideSubtitle ? null : <div className="nt-node__subtitle">{CATALOG[kind].label}</div>}
+          <EditableTitle nodeId={id} title={title} />
+          <div className="nt-node__subtitle">{CATALOG[kind].label}</div>
         </div>
-        {action}
+        {action ? <div className="nt-node__actions">{action}</div> : null}
         {CATALOG[kind].inputs.map((p, i) => (
           <Port key={p.id} port={p} side="in" index={i} />
         ))}
@@ -77,6 +130,17 @@ const STATUS: Record<RunStatus | 'stale', { label: string; Icon: typeof Check }>
   failed: { label: 'Failed', Icon: TriangleAlert },
   stale: { label: 'Out of date: inputs changed', Icon: RefreshCw },
 };
+
+/** Node status as an icon; the detail is in the tooltip and read out by screen readers. */
+export function StatusIcon({ status, detail }: { status: RunStatus | 'stale'; detail?: string }) {
+  const { label, Icon } = STATUS[status];
+  const text = detail ? `${label}: ${detail}` : label;
+  return (
+    <span className={`status-icon status-icon--${status}`} role="img" title={text} aria-label={`Status: ${text}`}>
+      <Icon size={16} className={status === 'running' ? 'spin' : undefined} aria-hidden />
+    </span>
+  );
+}
 
 export function StatusChip({ status }: { status: RunStatus | 'stale' }) {
   const { label, Icon } = STATUS[status];

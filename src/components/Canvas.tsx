@@ -12,7 +12,7 @@ import {
 } from '@xyflow/react';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { getPort } from '../../shared/graph/catalog';
-import { FIT_OPTIONS } from '../lib/ui';
+import { FIT_OPTIONS, NODE_WIDTH } from '../lib/ui';
 import type { AppEdge, AppNode, NodeKind } from '../../shared/graph/types';
 import { checkConnection, planDrop } from '../../shared/graph/validate';
 import { useBoard } from '../store/board';
@@ -30,7 +30,7 @@ const nodeTypes: NodeTypes = {
 
 const edgeTypes: EdgeTypes = { link: LinkEdge };
 
-const FALLBACK = { w: 300, h: 160 };
+const FALLBACK = { w: NODE_WIDTH, h: 160 };
 const GAP = 80;
 type Box = { x: number; y: number; w: number; h: number };
 

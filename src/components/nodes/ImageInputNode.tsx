@@ -38,10 +38,10 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
 
   return (
     <NodeShell
+      id={id}
       kind="imageInput"
       title={data.title}
       selected={selected}
-      width={300}
       action={
         <button className="icon-btn nodrag" title="Upload images" aria-label="Upload images" onClick={() => fileRef.current?.click()}>
           <Upload size={16} />
