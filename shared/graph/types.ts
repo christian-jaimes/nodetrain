@@ -38,6 +38,8 @@ export type PromptData = {
   kind: 'prompt';
   title: string;
   text: string;
+  /** Free-text model name. Not used by runs yet. */
+  model?: string;
 };
 
 export type ImageInputData = {
