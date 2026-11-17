@@ -13,7 +13,7 @@ export function NodeShell({
   action,
   children,
   width,
-  status,
+  hideSubtitle,
 }: {
   kind: NodeKind;
   title: string;
@@ -21,7 +21,8 @@ export function NodeShell({
   action?: ReactNode;
   children: ReactNode;
   width: number;
-  status?: ReactNode;
+  /** Leave out the node type line under the name. */
+  hideSubtitle?: boolean;
 }) {
   return (
     <div className={`nt-node ${selected ? 'is-selected' : ''}`} style={{ width }}>
@@ -29,7 +30,7 @@ export function NodeShell({
         <NodeIconTile kind={kind} />
         <div className="nt-node__titles">
           <div className="nt-node__title">{title}</div>
-          <div className="nt-node__subtitle">{CATALOG[kind].label}</div>
+          {hideSubtitle ? null : <div className="nt-node__subtitle">{CATALOG[kind].label}</div>}
         </div>
         {action}
         {CATALOG[kind].inputs.map((p, i) => (
@@ -39,7 +40,6 @@ export function NodeShell({
           <Port key={p.id} port={p} side="out" />
         ))}
       </div>
-      {status}
       <div className="nt-node__body">{children}</div>
     </div>
   );

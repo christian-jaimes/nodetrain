@@ -3,10 +3,10 @@ import { Play, Sparkles } from 'lucide-react';
 import { aspectSize } from '../../../shared/graph/catalog';
 import { ASPECT_RATIOS, IMAGE_MODEL_LIST, apiSize, formatDate, getModel, settingsIssues, shutdownNotice } from '../../../shared/graph/models';
 import type { ImageGenerationNode as GenNode } from '../../../shared/graph/types';
-import { isStale, resolveInputs } from '../../../shared/graph/validate';
+import { isStale, resolveInputs, selectedOutput } from '../../../shared/graph/validate';
 
 import { useBoard } from '../../store/board';
-import { ImageMosaic, NodeShell, StatusChip } from './parts';
+import { ImageMosaic, NodeShell } from './parts';
 
 type Option = string | { value: string; label: string; disabled?: boolean };
 
@@ -92,12 +92,14 @@ export function useGenerationState(node: GenNode) {
 
 export function ImageGenerationNode(props: NodeProps<GenNode>) {
   const { id, data, selected } = props;
-  const updateData = useBoard((s) => s.updateData);
   const run = useBoard((s) => s.run);
   const running = useBoard((s) => s.running);
   const node = { id, data, type: 'imageGeneration', position: { x: 0, y: 0 } } as GenNode;
-  const { inputs, status, connectedPrompts } = useGenerationState(node);
+  const { status } = useGenerationState(node);
   const [pw, ph] = aspectSize(data.aspectRatio);
+  // Show only the picked image when there is one, otherwise everything the node has made.
+  const picked = selectedOutput(node);
+  const shown = picked ? [picked] : data.outputs;
 
   return (
     <NodeShell
@@ -105,63 +107,29 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
       title={data.title}
       selected={selected}
       width={400}
-      status={
-        <div className="nt-node__status">
-          <StatusChip status={status} />
-        </div>
-      }
+      hideSubtitle
       action={
         <button
-            className="run-btn nodrag"
-            title="Run this node and anything it depends on"
-            aria-label={`Run ${data.title}`}
-            disabled={running}
-            onClick={() => void run(id)}
-          >
-            <Play size={15} fill="currentColor" />
-          </button>
+          className="run-btn nodrag"
+          title="Run this node and anything it depends on"
+          aria-label={`Run ${data.title}`}
+          disabled={running}
+          onClick={() => void run(id)}
+        >
+          <Play size={15} fill="currentColor" />
+        </button>
       }
     >
-      <div className="port-row">
-        <span className="port-row__label">Prompt</span>
-        <span className="port-row__meta">
-          {connectedPrompts ? `${connectedPrompts} connected` : 'Text · optional if written below'}
-        </span>
-      </div>
-      <div className="port-row">
-        <span className="port-row__label">References</span>
-        <span className="port-row__meta">{inputs.references.length ? `${inputs.references.length} image${inputs.references.length > 1 ? 's' : ''}` : 'Image · optional'}</span>
-      </div>
-
-      <label className="field-label" htmlFor={`gp-${id}`}>
-        {connectedPrompts ? 'Additional prompt' : 'Prompt'}
-      </label>
-      <textarea
-        id={`gp-${id}`}
-        className="nt-textarea nodrag nowheel"
-        rows={3}
-        placeholder={connectedPrompts ? 'Added after the connected prompt…' : 'Describe the image you want…'}
-        value={data.prompt}
-        onChange={(e) => updateData(id, { prompt: e.target.value })}
-      />
-      <ModelSettings node={node} idPrefix={`g-${id}`} />
-
-      {data.status === 'failed' && data.error ? (
-        <p className="node-error" role="alert">
-          {data.error}
-        </p>
-      ) : null}
-
       <div
-        className={`gen-output ${status === 'stale' ? 'is-stale' : ''} ${data.outputs.length ? 'has-images' : ''}`}
-        style={data.outputs.length ? undefined : { aspectRatio: `${pw} / ${ph}` }}
+        className={`gen-output ${status === 'stale' ? 'is-stale' : ''} ${shown.length ? 'has-images' : ''}`}
+        style={shown.length ? undefined : { aspectRatio: `${pw} / ${ph}` }}
       >
-        {data.outputs.length ? (
-          <ImageMosaic images={data.outputs} alt={() => `Output of ${data.title}`} />
+        {shown.length ? (
+          <ImageMosaic images={shown} alt={() => `Output of ${data.title}`} />
         ) : (
           <div className="gen-output__empty">
             <Sparkles size={20} />
-            <span>{status === 'running' ? 'Generating…' : 'Run to generate an image'}</span>
+            <span>{status === 'running' ? 'Generating…' : status === 'failed' ? 'Failed. See the properties panel' : 'Run to generate an image'}</span>
           </div>
         )}
         {status === 'running' ? <div className="gen-output__shimmer" /> : null}

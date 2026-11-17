@@ -13,16 +13,19 @@ export const DOC_VERSION = 1;
 export const NODE_TYPE_VERSIONS: Record<NodeKind, number> = {
   prompt: 1,
   imageInput: 1,
-  imageGeneration: 2,
+  imageGeneration: 3,
 };
 
 /**
  * Per node type upgrades, keyed by the version they upgrade from.
  * imageGeneration v1 -> v2: retired models are replaced (gpt-image-1 shut down 2026-10-23).
+ * imageGeneration v2 -> v3: gpt-image-2, 1.5 and 1-mini were removed from the model list.
  */
+const retireModel = (d: Record<string, unknown>) => (typeof d.model === 'string' && RETIRED_MODELS[d.model] ? { ...d, model: RETIRED_MODELS[d.model] } : d);
 const NODE_MIGRATIONS: Partial<Record<NodeKind, Record<number, (data: Record<string, unknown>) => Record<string, unknown>>>> = {
   imageGeneration: {
-    1: (d) => (typeof d.model === 'string' && RETIRED_MODELS[d.model] ? { ...d, model: RETIRED_MODELS[d.model] } : d),
+    1: retireModel,
+    2: retireModel,
   },
 };
 

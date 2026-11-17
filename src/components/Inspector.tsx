@@ -1,11 +1,11 @@
 import { useReactFlow } from '@xyflow/react';
-import { ChevronDown, Download, Hand, History, Play, Redo2, Scan, Square, SquareDashedMousePointer, Trash2, Undo2, Upload } from 'lucide-react';
+import { Check, ChevronDown, Download, Hand, History, Play, Redo2, Scan, Square, SquareDashedMousePointer, Trash2, Undo2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CATALOG } from '../../shared/graph/catalog';
 import { formatUsd } from '../../shared/graph/models';
 import { FIT_OPTIONS } from '../lib/ui';
-import type { AppNode, ImageGenerationNode as GenNode, ImageInputNode, PromptNode, RunStatus } from '../../shared/graph/types';
+import type { AppNode, ImageGenerationNode as GenNode, ImageInputNode, PromptNode } from '../../shared/graph/types';
 import { selectedOutput } from '../../shared/graph/validate';
 import type { NodeExecutionView } from '../../shared/api';
 import { exportWorkflow, useBoard } from '../store/board';
@@ -167,64 +167,97 @@ function ActivityList({ entries }: { entries: NodeExecutionView[] }) {
   );
 }
 
-function RunLine({ status, lastRunAt, costUsd }: { status: RunStatus | 'stale'; lastRunAt?: number; costUsd?: number }) {
+/** Status badge for the header row, beside the node name. */
+function GenStatus({ node }: { node: GenNode }) {
+  const { status } = useGenerationState(node);
+  return <StatusChip status={status} />;
+}
+
+/** Last run time and cost, on the node type row. */
+function GenLastRun({ node }: { node: GenNode }) {
+  const lastCost = useBoard((s) => s.activity.find((a) => a.nodeId === node.id && a.costUsd !== undefined)?.costUsd);
+  const at = node.data.lastRunAt;
+  if (!at) return null;
   return (
-    <div className="insp-status">
-      <StatusChip status={status} />
-      <span className="muted small">
-        Last run {new Date(lastRunAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        {costUsd !== undefined ? ` · ≈ ${formatUsd(costUsd)}` : ''}
-      </span>
-    </div>
+    <span className="small">
+      Last run {new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      {lastCost !== undefined ? ` · ≈ ${formatUsd(lastCost)}` : ''}
+    </span>
   );
 }
 
 function GenerationProps({ node }: { node: GenNode }) {
   const selectOutput = useBoard((s) => s.selectOutput);
   const updateData = useBoard((s) => s.updateData);
-  const { status } = useGenerationState(node);
+  const { inputs, connectedPrompts } = useGenerationState(node);
   const out = selectedOutput(node);
   const d = node.data;
-  const lastCost = useBoard((s) => s.activity.find((a) => a.nodeId === node.id && a.costUsd !== undefined)?.costUsd);
   return (
     <>
-      {d.lastRunAt ? <RunLine status={status} lastRunAt={d.lastRunAt} costUsd={lastCost} /> : null}
-      <ModelSettings node={node} idPrefix="i" />
       <div className="field">
         <label className="field-label" htmlFor="i-prompt">
-          Prompt
+          {connectedPrompts ? 'Additional prompt' : 'Prompt'}
         </label>
-        <textarea id="i-prompt" className="nt-textarea" rows={5} placeholder="Describe the image you want…" value={d.prompt} onChange={(e) => updateData(node.id, { prompt: e.target.value })} />
+        <textarea
+          id="i-prompt"
+          className="nt-textarea"
+          rows={5}
+          placeholder={connectedPrompts ? 'Added after the connected prompt…' : 'Describe the image you want…'}
+          value={d.prompt}
+          onChange={(e) => updateData(node.id, { prompt: e.target.value })}
+        />
+        <p className="muted small">
+          {connectedPrompts ? `${connectedPrompts} prompt${connectedPrompts > 1 ? 's' : ''} connected` : 'No prompt connected'} ·{' '}
+          {inputs.references.length ? `${inputs.references.length} reference image${inputs.references.length > 1 ? 's' : ''}` : 'No reference images'}
+        </p>
       </div>
+      <ModelSettings node={node} idPrefix="i" />
+      {d.status === 'failed' && d.error ? (
+        <p className="node-error" role="alert">
+          {d.error}
+        </p>
+      ) : null}
       <div className="field">
         <span className="field-label">Output</span>
-        {out ? (
+        {d.outputs.length ? (
           <>
-            <div className="insp-output-wrap">
-              <a href={out.src} target="_blank" rel="noreferrer" title="Open full size">
-                <img className="insp-output" src={out.src} alt="Selected output" />
-              </a>
-              <a className="icon-btn icon-btn--overlay" href={out.src} download={out.name} title="Download" aria-label="Download image">
-                <Download size={16} />
-              </a>
-            </div>
-            {out.provider === 'simulated' ? <p className="muted small">Simulated preview, no model was called. Add an OpenAI API key to generate real images.</p> : null}
-            {d.outputs.length > 1 ? (
-              <div className="versions">
-                {d.outputs.map((o, i) => (
+            <div className="versions" role="group" aria-label="Output images">
+              {d.outputs.map((o, i) => {
+                const on = o.id === out?.id;
+                return (
                   <button
                     key={o.id}
-                    className={`version ${o.id === out.id ? 'is-active' : ''}`}
-                    onClick={() => selectOutput(node.id, o.id)}
-                    aria-label={`Use version ${d.outputs.length - i}`}
-                    aria-pressed={o.id === out.id}
+                    className={`version ${on ? 'is-active' : ''}`}
+                    onClick={() => selectOutput(node.id, on ? undefined : o.id)}
+                    aria-label={`Version ${d.outputs.length - i}`}
+                    aria-pressed={on}
+                    title={on ? 'Click to deselect' : 'Click to use only this image as the reference'}
                   >
                     <img src={o.thumb ?? o.src} alt="" />
                     <span>v{d.outputs.length - i}</span>
+                    {on ? (
+                      <i className="version__check" aria-hidden>
+                        <Check size={12} strokeWidth={3} />
+                      </i>
+                    ) : null}
                   </button>
-                ))}
+                );
+              })}
+            </div>
+            <p className="muted small">
+              {out ? 'Only the selected image is used as a reference downstream. Click it again to use all.' : 'Select an image to use only it as a reference. With none selected, all are used.'}
+            </p>
+            {out ? (
+              <div className="insp-output-wrap">
+                <a href={out.src} target="_blank" rel="noreferrer" title="Open full size">
+                  <img className="insp-output" src={out.src} alt="Selected output" />
+                </a>
+                <a className="icon-btn icon-btn--overlay" href={out.src} download={out.name} title="Download" aria-label="Download image">
+                  <Download size={16} />
+                </a>
               </div>
             ) : null}
+            {d.outputs.some((o) => o.provider === 'simulated') ? <p className="muted small">Simulated preview, no model was called. Add an OpenAI API key to generate real images.</p> : null}
           </>
         ) : (
           <p className="muted small">Nothing generated yet.</p>
@@ -316,14 +349,20 @@ function NodeBody({ node }: { node: AppNode }) {
       <div className="insp-head">
         <NodeIconTile kind={node.type!} size="lg" />
         <div className="insp-head__text">
-          <input
-            className="insp-head__title"
-            aria-label="Node name"
-            value={node.data.title}
-            onChange={(e) => updateData(node.id, { title: e.target.value }, `title:${node.id}`)}
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          />
-          <div className="insp-head__sub">{CATALOG[node.type!].label}</div>
+          <div className="insp-head__line">
+            <input
+              className="insp-head__title"
+              aria-label="Node name"
+              value={node.data.title}
+              onChange={(e) => updateData(node.id, { title: e.target.value }, `title:${node.id}`)}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+            {node.type === 'imageGeneration' ? <GenStatus node={node} /> : null}
+          </div>
+          <div className="insp-head__line insp-head__sub">
+            <span>{CATALOG[node.type!].label}</span>
+            {node.type === 'imageGeneration' ? <GenLastRun node={node} /> : null}
+          </div>
         </div>
       </div>
       <div className="insp-body">
