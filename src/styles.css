@@ -454,6 +454,7 @@ button:disabled {
   position: relative;
   display: inline-flex;
   align-items: stretch;
+  height: 36px;
   border-radius: 999px;
   background: var(--accent-fill);
   transition: background 0.15s;
@@ -468,14 +469,19 @@ button:disabled {
 .split-btn > .primary-btn:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.18);
 }
-.split-btn__main {
+.split-btn > .split-btn__main {
   border-radius: 999px 0 0 999px;
+  height: 36px;
+  padding-block: 0;
   padding-right: 14px;
 }
-.split-btn__caret {
+.split-btn > .split-btn__caret {
   position: relative;
   border-radius: 0 999px 999px 0;
-  padding: 10px 11px 10px 10px;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
 }
 .split-btn__caret::before {
   content: '';
@@ -826,16 +832,12 @@ input.insp-head__title:focus {
   place-items: center;
   width: 36px;
   height: 36px;
+  flex: none;
   border-radius: 999px;
   color: var(--text);
 }
 .icon-btn:hover:not(:disabled) {
   background: var(--field-hover);
-}
-.icon-btn--sm {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
 }
 .primary-btn {
   display: inline-flex;
