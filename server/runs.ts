@@ -44,6 +44,9 @@ function startOfToday() {
   return d.getTime();
 }
 
+/** Most generations in flight at once within one run. */
+const MAX_PARALLEL = 8;
+
 export class RunError extends Error {
   status: 400 | 404 | 409;
   constructor(message: string, status: 400 | 404 | 409 = 400) {
@@ -280,31 +283,56 @@ export class Orchestrator {
     this.controllers.set(runId, controller);
 
     try {
-      for (const ex of execs) {
-        const now = Date.now();
-        if (this.isCanceled(runId)) {
-          this.setExec(ex.id, { status: 'canceled', error: 'Canceled before it started.', error_category: 'canceled', ended_at: now });
-          continue;
+      // Nodes with no unfinished upstream generation start together; the rest
+      // wait only for the nodes they actually depend on. MAX_PARALLEL keeps a
+      // wide step from tripping the provider's rate limits.
+      const inRun = new Set(execs.map((e) => e.node_id));
+      const done = new Map<string, Promise<void>>();
+      let active = 0;
+      const waiting: (() => void)[] = [];
+      const acquire = async () => {
+        while (active >= MAX_PARALLEL) await new Promise<void>((r) => waiting.push(r));
+        active++;
+      };
+      const release = () => {
+        active--;
+        waiting.shift()?.();
+      };
+      const runExec = async (ex: ExecRow) => {
+        const deps = edges.filter((e) => e.target === ex.node_id && inRun.has(e.source)).map((e) => done.get(e.source)!);
+        await Promise.all(deps);
+        await acquire();
+        try {
+          const now = Date.now();
+          if (this.isCanceled(runId)) {
+            this.setExec(ex.id, { status: 'canceled', error: 'Canceled before it started.', error_category: 'canceled', ended_at: now });
+            return;
+          }
+          const node = nodes.find((n) => n.id === ex.node_id) as AppNode | undefined;
+          if (!node || node.type !== 'imageGeneration') {
+            this.setExec(ex.id, { status: 'failed', error: 'Node is missing from the saved board.', error_category: 'internal', ended_at: now });
+            failed.add(ex.node_id);
+            return;
+          }
+          if (edges.some((e) => e.target === node.id && failed.has(e.source))) {
+            this.setExec(ex.id, { status: 'failed', error: 'An upstream step failed. Fix it and run again.', error_category: 'upstream', ended_at: now });
+            failed.add(node.id);
+            return;
+          }
+          const issues = validateNode(node, nodes, edges, outputOf);
+          if (issues.length) {
+            this.setExec(ex.id, { status: 'failed', error: issues[0].detail, error_category: 'invalid_input', ended_at: now });
+            failed.add(node.id);
+            return;
+          }
+          await this.runGeneration(runId, ex, node, nodes, edges, outputOf, produced, failed, controller.signal);
+        } finally {
+          release();
         }
-        const node = nodes.find((n) => n.id === ex.node_id) as AppNode | undefined;
-        if (!node || node.type !== 'imageGeneration') {
-          this.setExec(ex.id, { status: 'failed', error: 'Node is missing from the saved board.', error_category: 'internal', ended_at: now });
-          failed.add(ex.node_id);
-          continue;
-        }
-        if (edges.some((e) => e.target === node.id && failed.has(e.source))) {
-          this.setExec(ex.id, { status: 'failed', error: 'An upstream step failed. Fix it and run again.', error_category: 'upstream', ended_at: now });
-          failed.add(node.id);
-          continue;
-        }
-        const issues = validateNode(node, nodes, edges, outputOf);
-        if (issues.length) {
-          this.setExec(ex.id, { status: 'failed', error: issues[0].detail, error_category: 'invalid_input', ended_at: now });
-          failed.add(node.id);
-          continue;
-        }
-        await this.runGeneration(runId, ex, node, nodes, edges, outputOf, produced, failed, controller.signal);
-      }
+      };
+      // execs are in topological order, so every dependency already has a promise.
+      for (const ex of execs) done.set(ex.node_id, runExec(ex));
+      await Promise.all(done.values());
     } finally {
       this.controllers.delete(runId);
       this.finishRun(runId);

@@ -154,6 +154,34 @@ describe('runs', () => {
     expect(by.ok.status).toBe('succeeded');
   });
 
+  it('runs independent nodes at once but keeps dependent ones waiting', async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const events: string[] = [];
+    const inner = new SimulatedProvider([60, 60]);
+    const provider: ImageProvider = {
+      id: 'simulated',
+      async generateImage(req) {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        events.push(`start:${req.prompt}`);
+        try {
+          return await inner.generateImage(req);
+        } finally {
+          inFlight--;
+          events.push(`end:${req.prompt}`);
+        }
+      },
+    } as ImageProvider;
+    make(provider);
+    const nodes = [1, 2, 3, 4].map((n) => node(`g${n}`, 'imageGeneration', { prompt: `p${n}` })).concat(node('after', 'imageGeneration', { prompt: 'after' }));
+    const b = await createBoard(nodes, [edge('g1', 'after', 'image', 'references')]);
+    const run = await runToEnd(b.id, b.revision);
+    expect(run.status).toBe('succeeded');
+    expect(peak).toBe(4);
+    expect(events.indexOf('start:after')).toBeGreaterThan(events.indexOf('end:p1'));
+  });
+
   it('only runs from a saved revision', async () => {
     make();
     const b = await createBoard([node('g', 'imageGeneration', { prompt: 'x' })], []);
