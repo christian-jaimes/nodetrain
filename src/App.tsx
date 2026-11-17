@@ -66,6 +66,18 @@ function Workspace() {
         return;
       }
       if (isTyping(e)) return;
+      if (e.key === 'Enter' && !mod && !e.altKey && !e.shiftKey && !e.repeat) {
+        // Enter on a focused button, link or dialog belongs to that control. Otherwise it runs the selected Image Generation nodes
+        // like Run node does: only those nodes, independent ones together.
+        const t = e.target as HTMLElement | null;
+        if (t?.closest('button, a, [role="dialog"], [role="menu"], [role="listbox"]')) return;
+        const ids = s.nodes.filter((n) => n.selected && n.type === 'imageGeneration').map((n) => n.id);
+        if (ids.length) {
+          e.preventDefault();
+          void s.run(ids, false);
+        }
+        return;
+      }
       if (mod && key === 'z' && !e.shiftKey) {
         e.preventDefault();
         s.undo();

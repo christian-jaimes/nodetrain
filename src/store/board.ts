@@ -104,7 +104,7 @@ type BoardState = {
   duplicateSelection: () => void;
   deleteSelection: () => void;
   /** With a target, upstream=false runs only that node and reuses what its inputs last produced. */
-  run: (targetId?: string, upstream?: boolean) => Promise<void>;
+  run: (targetId?: string | string[], upstream?: boolean) => Promise<void>;
   cancelRun: () => void;
   /** Picks the image passed downstream, or clears the pick (undefined) so every image is passed. */
   selectOutput: (nodeId: string, outputId: string | undefined) => void;
