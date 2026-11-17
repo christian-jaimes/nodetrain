@@ -27,9 +27,13 @@ function Workspace() {
   const galleryOpen = useBoard((s) => s.galleryOpen);
   const starting = open && showStart && empty;
 
-  // Opening the start page folds the sidebar into its bar; the user can expand it again.
+  // Opening the start page folds the sidebar into its bar, and leaving it (a blank or template workflow was created) opens it again.
+  // The user can still toggle it by hand in between.
+  const wasStarting = useRef(false);
   useEffect(() => {
     if (starting) setCollapsed(true);
+    else if (wasStarting.current) setCollapsed(false);
+    wasStarting.current = starting;
   }, [starting]);
 
   useEffect(() => {
