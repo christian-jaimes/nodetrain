@@ -2330,6 +2330,9 @@ input.insp-head__title:focus {
   width: 200px;
 }
 .group-cta {
+  /* The canvas viewport ignores the pointer, so the button has to opt back in. */
+  pointer-events: auto;
+  z-index: 5;
   position: absolute;
   top: 0;
   left: 0;
