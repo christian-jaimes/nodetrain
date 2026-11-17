@@ -6,7 +6,7 @@ import { EMPTY_SPEND, type BoardPayload, type BoardRunState, type BoardSummary, 
 import { CATALOG, getPort } from '../../shared/graph/catalog';
 import { cleanGroups, fromDocument, migrateDocument, toDocument } from '../../shared/graph/document';
 import { checkConnection, planRun, type CheckResult, type ConnectionLike } from '../../shared/graph/validate';
-import { RUN_FIELDS, type AppEdge, type AppNode, type ImageAsset, type ImageGenerationData, type NodeData, type NodeGroup, type NodeKind } from '../../shared/graph/types';
+import { RUN_FIELDS, isRunnable, type AppEdge, type AppNode, type ImageAsset, type RunnableNode, type NodeData, type NodeGroup, type NodeKind } from '../../shared/graph/types';
 import { ApiError, OfflineError, api, errorText } from '../lib/api';
 import { uploadDataUrl } from '../lib/images';
 import type { Template } from '../graph/templates';
@@ -145,7 +145,7 @@ function keepRunState(restored: AppNode[], current: AppNode[]): AppNode[] {
   const byId = new Map(current.map((n) => [n.id, n]));
   return restored.map((n) => {
     const cur = byId.get(n.id);
-    if (n.type !== 'imageGeneration' || cur?.type !== 'imageGeneration') return n;
+    if (!isRunnable(n) || !isRunnable(cur)) return n;
     const data = { ...n.data } as Record<string, unknown>;
     for (const f of RUN_FIELDS) if (f !== 'selectedOutputId') data[f] = cur.data[f];
     return { ...n, data } as AppNode;
@@ -155,11 +155,11 @@ function keepRunState(restored: AppNode[], current: AppNode[]): AppNode[] {
 /** Rebuilds what the canvas shows about runs from the server's run history. */
 function hydrate(nodes: AppNode[], state: BoardRunState): AppNode[] {
   return nodes.map((n) => {
-    if (n.type !== 'imageGeneration') return n;
+    if (!isRunnable(n)) return n;
     const latest = state.latest[n.id];
     const ok = state.lastSucceeded[n.id];
     const outputs = state.outputs[n.id] ?? [];
-    let status: ImageGenerationData['status'] = outputs.length ? 'succeeded' : 'idle';
+    let status: RunnableNode['data']['status'] = outputs.length ? 'succeeded' : 'idle';
     if (latest?.status === 'queued' || latest?.status === 'running') status = latest.status;
     else if (latest?.status === 'failed') status = 'failed';
     return {
@@ -221,24 +221,27 @@ export const useBoard = create<BoardState>((set, get) => {
     if (docJson() !== lastSavedJson) return saveNow();
   };
 
-  const patchNode = (id: string, patch: Partial<ImageGenerationData>) =>
-    set({ nodes: get().nodes.map((n) => (n.id === id && n.type === 'imageGeneration' ? ({ ...n, data: { ...n.data, ...patch } } as AppNode) : n)) });
+  const patchNode = (id: string, patch: Partial<RunnableNode['data']>) =>
+    set({ nodes: get().nodes.map((n) => (n.id === id && isRunnable(n) ? ({ ...n, data: { ...n.data, ...patch } } as AppNode) : n)) });
 
   /** Copies a run's progress onto the canvas. */
   const applyRun = (run: RunView) => {
     for (const ex of run.nodes) {
       const n = get().nodes.find((x) => x.id === ex.nodeId);
-      if (!n || n.type !== 'imageGeneration') continue;
+      if (!isRunnable(n)) continue;
       if (ex.status === 'queued' || ex.status === 'running') patchNode(ex.nodeId, { status: ex.status, error: undefined });
       else if (ex.status === 'succeeded') {
         const known = new Set(n.data.outputs.map((o) => o.id));
         const fresh = ex.outputs.filter((o) => !known.has(o.id));
+        // An edit shows only its latest result; a generation adds to what it has made.
+        const outputs = n.type === 'imageTransform' ? ex.outputs : [...fresh, ...n.data.outputs];
+        const changed = n.type === 'imageTransform' ? outputs.some((o) => !known.has(o.id)) || outputs.length !== known.size : fresh.length > 0;
         // Clearing the pick passes every output downstream, the same rule the server uses.
         patchNode(ex.nodeId, {
           status: 'succeeded',
           error: undefined,
-          outputs: [...fresh, ...n.data.outputs],
-          ...(fresh.length ? { selectedOutputId: undefined } : {}),
+          outputs,
+          ...(changed ? { selectedOutputId: undefined } : {}),
           lastRunKey: ex.runKey,
           lastRunAt: ex.endedAt,
         });
@@ -504,7 +507,7 @@ export const useBoard = create<BoardState>((set, get) => {
         const id = nanoid(8);
         map.set(n.id, id);
         // A pasted generation node starts fresh: run history belongs to the original.
-        const data = n.type === 'imageGeneration' ? { ...n.data, status: 'idle', outputs: [], selectedOutputId: undefined, lastRunKey: undefined, lastRunAt: undefined, error: undefined } : n.data;
+        const data = isRunnable(n) ? { ...n.data, status: 'idle', outputs: [], selectedOutputId: undefined, lastRunKey: undefined, lastRunAt: undefined, error: undefined } : n.data;
         return { ...n, id, data, selected: true, position: { x: n.position.x + 48, y: n.position.y + 48 } } as AppNode;
       });
       const edges = s.clipboard.edges.map((e) => ({ ...e, id: nanoid(8), source: map.get(e.source)!, target: map.get(e.target)! }));
@@ -529,7 +532,7 @@ export const useBoard = create<BoardState>((set, get) => {
       const s = get();
       if (s.running || !s.boardId) return;
       if (!planRun(s.nodes, s.edges, targetId, upstream).length) {
-        s.notify('Add an Image Generation node to run this workflow.');
+        s.notify('Add an Image Generation or Image Transformation node to run this workflow.');
         return;
       }
       set({ running: true });
@@ -552,7 +555,7 @@ export const useBoard = create<BoardState>((set, get) => {
 
     selectOutput: (nodeId, outputId) => {
       get().commit();
-      set({ nodes: get().nodes.map((n) => (n.id === nodeId && n.type === 'imageGeneration' ? ({ ...n, data: { ...n.data, selectedOutputId: outputId } } as AppNode) : n)) });
+      set({ nodes: get().nodes.map((n) => (n.id === nodeId && isRunnable(n) ? ({ ...n, data: { ...n.data, selectedOutputId: outputId } } as AppNode) : n)) });
     },
 
     loadTemplate: async (t) => {

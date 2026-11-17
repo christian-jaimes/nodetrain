@@ -1,10 +1,11 @@
-import { Image as ImageIcon, Sparkles, Type, type LucideIcon } from 'lucide-react';
+import { Image as ImageIcon, Sparkles, Type, Wand2, type LucideIcon } from 'lucide-react';
 import type { NodeKind } from '../../shared/graph/types';
 
 export const NODE_ICONS: Record<NodeKind, LucideIcon> = {
   prompt: Type,
   imageInput: ImageIcon,
   imageGeneration: Sparkles,
+  imageTransform: Wand2,
 };
 
 export function NodeIconTile({ kind, size = 'md' }: { kind: NodeKind; size?: 'sm' | 'md' | 'lg' }) {

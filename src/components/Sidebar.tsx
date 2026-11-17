@@ -25,7 +25,7 @@ export function Logo() {
   );
 }
 
-const FAMILIES = ['Inputs', 'AI'] as const;
+const FAMILIES = ['Inputs', 'AI', 'Tools'] as const;
 
 /**
  * One floating panel with a fixed-width column (brand, navigation, footer) on the left.

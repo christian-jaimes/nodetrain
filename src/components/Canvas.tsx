@@ -13,12 +13,13 @@ import {
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { getPort } from '../../shared/graph/catalog';
 import { FIT_OPTIONS } from '../lib/ui';
-import type { AppEdge, AppNode, NodeKind } from '../../shared/graph/types';
+import { isRunnable, type AppEdge, type AppNode, type NodeKind } from '../../shared/graph/types';
 import { checkConnection, planDrop } from '../../shared/graph/validate';
 import { useBoard } from '../store/board';
 import { Groups } from './Groups';
 import { LinkEdge } from './LinkEdge';
 import { ImageGenerationNode } from './nodes/ImageGenerationNode';
+import { ImageTransformNode } from './nodes/ImageTransformNode';
 import { ImageInputNode } from './nodes/ImageInputNode';
 import { PromptNode } from './nodes/PromptNode';
 
@@ -26,6 +27,7 @@ const nodeTypes: NodeTypes = {
   prompt: PromptNode,
   imageInput: ImageInputNode,
   imageGeneration: ImageGenerationNode,
+  imageTransform: ImageTransformNode,
 };
 
 const edgeTypes: EdgeTypes = { link: LinkEdge };
@@ -81,7 +83,7 @@ export function Canvas() {
       const src = byId.get(e.source);
       const tgt = byId.get(e.target);
       const type = src ? getPort(src.type as NodeKind, 'source', e.sourceHandle)?.type : undefined;
-      const running = tgt?.type === 'imageGeneration' && tgt.data.status === 'running';
+      const running = isRunnable(tgt) && tgt.data.status === 'running';
       const into = tgt ? getPort(tgt.type as NodeKind, 'target', e.targetHandle)?.label : undefined;
       // Screen readers announce edges; name them by node titles rather than ids.
       const ariaLabel = `Connection from ${src?.data.title ?? 'a node'} to ${tgt?.data.title ?? 'a node'}${into ? `, ${into}` : ''}`;

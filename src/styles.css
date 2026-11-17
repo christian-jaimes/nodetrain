@@ -1007,6 +1007,12 @@ input.insp-head__title:focus {
   box-shadow: inset 0 0 0 1px rgba(184, 146, 255, 0.3);
 }
 
+.icon-tile--imageTransform {
+  background: #12365a;
+  color: #7cc0ff;
+  box-shadow: inset 0 0 0 1px rgba(110, 180, 255, 0.3);
+}
+
 /* ---------- Nodes ---------- */
 .nt-node {
   background: var(--node);
@@ -2508,4 +2514,20 @@ input.insp-head__title:focus {
 .image-grid > .is-pickable:hover {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* ---------- Image Transformation settings ---------- */
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.range-row input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+.range-row__num {
+  width: 84px;
+  flex: none;
 }

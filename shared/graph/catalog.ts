@@ -4,13 +4,14 @@ export type NodeDef = {
   kind: NodeKind;
   label: string;
   description: string;
-  family: 'Inputs' | 'AI';
+  family: 'Inputs' | 'AI' | 'Tools';
   inputs: PortDef[];
   outputs: PortDef[];
   create: () => NodeData;
 };
 
 import { DEFAULT_IMAGE_MODEL } from './models';
+import { DEFAULT_TRANSFORM, defaultOptions } from './transforms';
 export { ASPECT_RATIOS, ALL_QUALITIES, IMAGE_MODEL_LIST } from './models';
 
 export const CATALOG: Record<NodeKind, NodeDef> = {
@@ -49,6 +50,22 @@ export const CATALOG: Record<NodeKind, NodeDef> = {
       model: DEFAULT_IMAGE_MODEL,
       aspectRatio: 'Default',
       quality: 'Default',
+      status: 'idle',
+      outputs: [],
+    }),
+  },
+  imageTransform: {
+    kind: 'imageTransform',
+    label: 'Image Transformation',
+    description: 'Edit images in the middle of a workflow: remove the background, upscale, crop and more.',
+    family: 'Tools',
+    inputs: [{ id: 'image', label: 'Images', type: 'image', multi: true }],
+    outputs: [{ id: 'image', label: 'Images', type: 'image' }],
+    create: () => ({
+      kind: 'imageTransform',
+      title: 'Image transformation',
+      operation: DEFAULT_TRANSFORM,
+      options: defaultOptions(DEFAULT_TRANSFORM),
       status: 'idle',
       outputs: [],
     }),

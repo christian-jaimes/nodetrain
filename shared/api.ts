@@ -79,7 +79,7 @@ export type NodeExecutionView = {
   error?: string;
   errorCategory?: string;
   /** Inputs and settings actually sent, for provenance. */
-  request?: { prompt: string; referenceIds: string[]; model: string; aspectRatio: string; quality: string; provider: string };
+  request?: { prompt: string; referenceIds: string[]; model: string; aspectRatio: string; quality: string; provider: string; /** Image Transformation runs: the operation and its settings. For them `model` holds a short description. */ operation?: string; options?: Record<string, number | string> };
   outputs: ImageAsset[];
   runKey?: string;
   /** Token usage as reported by the provider, when it reports it. */

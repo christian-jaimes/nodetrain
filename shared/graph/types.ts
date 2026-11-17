@@ -1,4 +1,5 @@
 import type { Edge, Node } from '@xyflow/react';
+import type { TransformOptions } from './transforms';
 
 /** Data types that can flow along an edge. Coercion between them is never implicit. */
 export type PortType = 'text' | 'image';
@@ -11,7 +12,7 @@ export type PortDef = {
   multi?: boolean;
 };
 
-export type NodeKind = 'prompt' | 'imageInput' | 'imageGeneration';
+export type NodeKind = 'prompt' | 'imageInput' | 'imageGeneration' | 'imageTransform';
 
 export type RunStatus = 'idle' | 'queued' | 'running' | 'succeeded' | 'failed';
 
@@ -67,12 +68,36 @@ export type ImageGenerationData = {
   lastRunAt?: number;
 };
 
-export type NodeData = PromptData | ImageInputData | ImageGenerationData;
+/** Edits the images it receives (remove background, upscale, ...) on this computer, with no model involved. */
+export type ImageTransformData = {
+  kind: 'imageTransform';
+  title: string;
+  /** Id of an operation in shared/graph/transforms.ts. */
+  operation: string;
+  options: TransformOptions;
+  // Run state. Kept out of undo history.
+  status: RunStatus;
+  error?: string;
+  /** What the last successful run produced, one image per input. */
+  outputs: ImageAsset[];
+  selectedOutputId?: string;
+  lastRunKey?: string;
+  lastRunAt?: number;
+};
+
+export type NodeData = PromptData | ImageInputData | ImageGenerationData | ImageTransformData;
 
 export type PromptNode = Node<PromptData, 'prompt'>;
 export type ImageInputNode = Node<ImageInputData, 'imageInput'>;
 export type ImageGenerationNode = Node<ImageGenerationData, 'imageGeneration'>;
-export type AppNode = PromptNode | ImageInputNode | ImageGenerationNode;
+export type ImageTransformNode = Node<ImageTransformData, 'imageTransform'>;
+export type AppNode = PromptNode | ImageInputNode | ImageGenerationNode | ImageTransformNode;
+/** Nodes that run and keep outputs. */
+export type RunnableNode = ImageGenerationNode | ImageTransformNode;
+
+export function isRunnable(n: { type?: string } | undefined | null): n is RunnableNode {
+  return n?.type === 'imageGeneration' || n?.type === 'imageTransform';
+}
 export type AppEdge = Edge;
 
 /** A named set of nodes drawn inside one frame. Visual only: it never changes how a workflow runs. */

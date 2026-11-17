@@ -5,6 +5,7 @@ import { Canvas } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { Busy, HintBar, NodePicker, ServerBanner, StartScreen, TemplatesModal, TitleBar, Toast } from './components/Overlays';
 import { Sidebar } from './components/Sidebar';
+import { isRunnable } from '../shared/graph/types';
 import { useBoard } from './store/board';
 import { FIT_OPTIONS } from './lib/ui';
 
@@ -61,7 +62,7 @@ function Workspace() {
         e.preventDefault();
         const sel = s.nodes.filter((n) => n.selected);
         if (sel.length === 1) {
-          if (sel[0].type === 'imageGeneration') void s.run(sel[0].id, false);
+          if (isRunnable(sel[0])) void s.run(sel[0].id, false);
         } else void s.run();
         return;
       }

@@ -49,7 +49,8 @@ A prompt-only node uses OpenAI's image generation endpoint. A node with connecte
 
 - **Start screen** with *Blank workflow* or *Browse templates* (Product photography, Storyboard starter, Character exploration).
 - **Infinite canvas**: pan by dragging or scrolling, pinch or Ctrl+scroll to zoom, box-select with Shift+drag.
-- **Three MVP nodes**: Prompt, Image Input and Image Generation.
+- **Four nodes**: Prompt, Image Input, Image Generation and Image Transformation.
+- **Image Transformation** edits images in the middle of a workflow, on your computer, with no key and no cost: remove a plain background, upscale (2x to 4x), resize, crop to an aspect ratio, trim borders, rotate and flip, brightness/contrast/saturation, black and white, blur and sharpen. Chain several nodes to combine edits.
 - **Typed ports**: text ports are purple diamonds and image ports are red circles, each with a label and a tooltip. Incompatible connections and loops are refused, with a message saying why.
 - **Drag out of a port onto empty canvas** to open a filtered "Create connected node" picker. The node and its connection are created together, and Escape cancels both.
 - **Double-click the canvas** to add any node. You can also drag a node from the sidebar or click it there.

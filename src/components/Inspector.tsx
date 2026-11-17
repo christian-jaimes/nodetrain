@@ -5,13 +5,15 @@ import { useShallow } from 'zustand/react/shallow';
 import { CATALOG } from '../../shared/graph/catalog';
 import { formatUsd } from '../../shared/graph/models';
 import { FIT_OPTIONS } from '../lib/ui';
-import type { AppNode, ImageGenerationNode as GenNode, ImageInputNode, PromptNode } from '../../shared/graph/types';
+import { TRANSFORMS, defaultOptions, getTransform, normalizeOptions, type TransformParam } from '../../shared/graph/transforms';
+import { isRunnable, type AppNode, type ImageGenerationNode as GenNode, type ImageInputNode, type ImageTransformNode as TransformNode, type PromptNode } from '../../shared/graph/types';
 import { selectedOutput } from '../../shared/graph/validate';
 import type { NodeExecutionView } from '../../shared/api';
 import { exportWorkflow, useBoard } from '../store/board';
 import { NodeIconTile } from './icons';
 import { useImageImport } from './nodes/ImageInputNode';
-import { ModelSettings, useGenerationState } from './nodes/ImageGenerationNode';
+import { ModelSettings, Select, useGenerationState } from './nodes/ImageGenerationNode';
+import { useTransformStatus } from './nodes/ImageTransformNode';
 import { OutputGallery, StatusChip } from './nodes/parts';
 
 function RunButton({ node }: { node: AppNode | null }) {
@@ -46,8 +48,8 @@ function RunButton({ node }: { node: AppNode | null }) {
       </button>
     );
   }
-  // Only Image Generation nodes produce anything today, so other kinds have nothing to run on their own.
-  const runnable = node.type === 'imageGeneration';
+  // Only Image Generation and Image Transformation nodes produce anything, so other kinds have nothing to run on their own.
+  const runnable = isRunnable(node);
   return (
     <div className="split-btn" ref={ref}>
       <button className="primary-btn split-btn__main" disabled={!runnable} onClick={() => void run(node.id, false)} title={runnable ? 'Run only this node (Ctrl+Enter)' : 'This node has nothing to run on its own'}>
@@ -142,7 +144,9 @@ function ActivityList({ entries }: { entries: NodeExecutionView[] }) {
             <span className="activity__status">{STATUS_LABEL[a.status]}</span>
             {' · '}
             {a.status === 'succeeded'
-              ? `${a.outputs.length} image${a.outputs.length === 1 ? '' : 's'} from ${a.request?.model ?? 'model'}${a.request?.provider === 'simulated' ? ' (simulated)' : ''}`
+              ? a.request?.provider === 'local'
+                ? `${a.request.model}: ${a.outputs.length} image${a.outputs.length === 1 ? '' : 's'}`
+                : `${a.outputs.length} image${a.outputs.length === 1 ? '' : 's'} from ${a.request?.model ?? 'model'}${a.request?.provider === 'simulated' ? ' (simulated)' : ''}`
               : a.error}
           </div>
           {a.status === 'succeeded' && a.outputs.length ? (
@@ -173,8 +177,12 @@ function GenStatus({ node }: { node: GenNode }) {
   return <StatusChip status={status} />;
 }
 
+function TransformStatus({ node }: { node: TransformNode }) {
+  return <StatusChip status={useTransformStatus(node)} runningLabel="Editing…" />;
+}
+
 /** Last run time and cost, on the node type row. */
-function GenLastRun({ node }: { node: GenNode }) {
+function GenLastRun({ node }: { node: GenNode | TransformNode }) {
   const lastCost = useBoard((s) => s.activity.find((a) => a.nodeId === node.id && a.costUsd !== undefined)?.costUsd);
   const at = node.data.lastRunAt;
   if (!at) return null;
@@ -187,10 +195,8 @@ function GenLastRun({ node }: { node: GenNode }) {
 }
 
 function GenerationProps({ node }: { node: GenNode }) {
-  const selectOutput = useBoard((s) => s.selectOutput);
   const updateData = useBoard((s) => s.updateData);
   const { inputs, connectedPrompts } = useGenerationState(node);
-  const out = selectedOutput(node);
   const d = node.data;
   return (
     <>
@@ -217,23 +223,110 @@ function GenerationProps({ node }: { node: GenNode }) {
           {d.error}
         </p>
       ) : null}
-      <div className="field">
-        <span className="field-label">Output</span>
-        {d.outputs.length ? (
-          <>
-            <OutputGallery fit="natural" images={d.outputs} selectedId={d.selectedOutputId} onSelect={(oid) => selectOutput(node.id, oid)} alt={() => 'Output'} />
-            <p className="muted small">
-              {out ? 'Only the selected image is used as a reference downstream. Click it again to use all.' : 'Select an image to use only it as a reference. With none selected, all are used.'}
-            </p>
-            <a className="secondary-btn" href={(out ?? d.outputs[0]).src} download={(out ?? d.outputs[0]).name}>
-              <Download size={15} /> Download {out ? 'selected' : 'latest'}
-            </a>
-            {d.outputs.some((o) => o.provider === 'simulated') ? <p className="muted small">Simulated preview, no model was called. Add an OpenAI API key to generate real images.</p> : null}
-          </>
-        ) : (
-          <p className="muted small">Nothing generated yet.</p>
-        )}
+      <OutputField node={node} empty="Nothing generated yet." />
+      {d.outputs.some((o) => o.provider === 'simulated') ? <p className="muted small">Simulated preview, no model was called. Add an OpenAI API key to generate real images.</p> : null}
+    </>
+  );
+}
+
+function OptionField({ node, param }: { node: TransformNode; param: TransformParam }) {
+  const updateData = useBoard((s) => s.updateData);
+  const value = normalizeOptions(node.data.operation, node.data.options)[param.id];
+  const set = (v: number | string) => updateData(node.id, { options: { ...node.data.options, [param.id]: v } }, `opt:${node.id}:${param.id}`);
+  const id = `i-opt-${param.id}`;
+  if (param.type === 'select') {
+    return (
+      <>
+        <Select id={id} label={param.label} value={String(value)} options={param.options} onChange={set} />
+        {param.hint ? <p className="muted small">{param.hint}</p> : null}
+      </>
+    );
+  }
+  return (
+    <div className="field">
+      <label className="field-label" htmlFor={id}>
+        {param.label}
+        {param.unit ? ` (${param.unit})` : ''}
+      </label>
+      <div className="range-row">
+        {param.max - param.min <= 200 ? (
+          <input className="nodrag" type="range" aria-label={param.label} min={param.min} max={param.max} step={param.step ?? 1} value={Number(value)} onChange={(e) => set(Number(e.target.value))} />
+        ) : null}
+        <input
+          id={id}
+          className="nt-input range-row__num"
+          type="number"
+          min={param.min}
+          max={param.max}
+          step={param.step ?? 1}
+          value={Number(value)}
+          onChange={(e) => e.target.value !== '' && set(Number(e.target.value))}
+          onBlur={(e) => set(Math.min(param.max, Math.max(param.min, Number(e.target.value) || param.default)))}
+        />
       </div>
+      {param.hint ? <p className="muted small">{param.hint}</p> : null}
+    </div>
+  );
+}
+
+function OutputField({ node, empty }: { node: GenNode | TransformNode; empty: string }) {
+  const selectOutput = useBoard((s) => s.selectOutput);
+  const d = node.data;
+  const out = selectedOutput(node);
+  return (
+    <div className="field">
+      <span className="field-label">Output</span>
+      {d.outputs.length ? (
+        <>
+          <OutputGallery fit="natural" images={d.outputs} selectedId={d.selectedOutputId} onSelect={(oid) => selectOutput(node.id, oid)} alt={() => 'Output'} />
+          {d.outputs.length > 1 ? (
+            <p className="muted small">
+              {out ? 'Only the selected image is passed on. Click it again to pass on all.' : 'Select an image to pass on only it. With none selected, all are passed on.'}
+            </p>
+          ) : null}
+          <a className="secondary-btn" href={(out ?? d.outputs[0]).src} download={(out ?? d.outputs[0]).name}>
+            <Download size={15} /> Download {out ? 'selected' : d.outputs.length > 1 ? 'latest' : 'image'}
+          </a>
+        </>
+      ) : (
+        <p className="muted small">{empty}</p>
+      )}
+    </div>
+  );
+}
+
+function TransformProps({ node }: { node: TransformNode }) {
+  const updateData = useBoard((s) => s.updateData);
+  const nodes = useBoard((s) => s.nodes);
+  const edges = useBoard((s) => s.edges);
+  const d = node.data;
+  const def = getTransform(d.operation);
+  const incoming = edges.filter((e) => e.target === node.id).length;
+  const outputOf = (n: (typeof nodes)[number]) => (isRunnable(n) ? n.data.outputs.length : n.type === 'imageInput' ? n.data.images.length : 0);
+  const available = edges.filter((e) => e.target === node.id).reduce((sum, e) => sum + outputOf(nodes.find((n) => n.id === e.source)!), 0);
+  return (
+    <>
+      <Select
+        id="i-op"
+        label="Operation"
+        value={d.operation}
+        options={TRANSFORMS.map((t) => ({ value: t.id, label: t.label }))}
+        onChange={(v) => updateData(node.id, { operation: v, options: defaultOptions(v) })}
+      />
+      {def ? <p className="muted small">{def.description}</p> : null}
+      {def?.params.map((p) => (
+        <OptionField key={`${d.operation}-${p.id}`} node={node} param={p} />
+      ))}
+      <p className="muted small">
+        {incoming ? `${incoming} input${incoming > 1 ? 's' : ''} connected` : 'Nothing connected'}
+        {incoming && available ? ` · ${available} image${available > 1 ? 's' : ''} ready` : ''}. Runs on this computer, so it costs nothing.
+      </p>
+      {d.status === 'failed' && d.error ? (
+        <p className="node-error" role="alert">
+          {d.error}
+        </p>
+      ) : null}
+      <OutputField node={node} empty="Nothing edited yet." />
     </>
   );
 }
@@ -329,10 +422,11 @@ function NodeBody({ node }: { node: AppNode }) {
               onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
             />
             {node.type === 'imageGeneration' ? <GenStatus node={node} /> : null}
+            {node.type === 'imageTransform' ? <TransformStatus node={node} /> : null}
           </div>
           <div className="insp-head__line insp-head__sub">
             <span>{CATALOG[node.type!].label}</span>
-            {node.type === 'imageGeneration' ? <GenLastRun node={node} /> : null}
+            {isRunnable(node) ? <GenLastRun node={node} /> : null}
           </div>
         </div>
       </div>
@@ -340,6 +434,7 @@ function NodeBody({ node }: { node: AppNode }) {
         {node.type === 'prompt' ? <PromptProps node={node} /> : null}
         {node.type === 'imageInput' ? <ImageInputProps node={node} /> : null}
         {node.type === 'imageGeneration' ? <GenerationProps node={node} /> : null}
+        {node.type === 'imageTransform' ? <TransformProps node={node} /> : null}
       </div>
     </>
   );

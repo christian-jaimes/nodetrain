@@ -1,6 +1,6 @@
 import { CATALOG } from './catalog';
 import { RETIRED_MODELS } from './models';
-import { RUN_FIELDS, type AppEdge, type AppNode, type NodeGroup, type NodeKind } from './types';
+import { RUN_FIELDS, isRunnable, type AppEdge, type AppNode, type NodeGroup, type NodeKind } from './types';
 
 /**
  * The saved form of a workflow graph. Bump DOC_VERSION when the shape
@@ -14,6 +14,7 @@ export const NODE_TYPE_VERSIONS: Record<NodeKind, number> = {
   prompt: 1,
   imageInput: 1,
   imageGeneration: 3,
+  imageTransform: 1,
 };
 
 /**
@@ -83,7 +84,7 @@ export function toDocument(nodes: AppNode[], edges: AppEdge[], groups: NodeGroup
     version: DOC_VERSION,
     nodes: nodes.map((n) => {
       const data = { ...(n.data as Record<string, unknown>) };
-      if (n.type === 'imageGeneration') for (const f of RUNTIME_ONLY) delete data[f];
+      if (isRunnable(n)) for (const f of RUNTIME_ONLY) delete data[f];
       return {
         id: n.id,
         type: n.type as NodeKind,

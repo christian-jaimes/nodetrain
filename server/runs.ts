@@ -1,12 +1,18 @@
+import { readFileSync } from 'node:fs';
 import { nanoid } from 'nanoid';
 import type { BoardRunState, NodeExecStatus, NodeExecutionView, RunStatusApi, RunView, SpendStats } from '../shared/api';
 import { fromDocument, migrateDocument } from '../shared/graph/document';
-import type { AppNode, ImageAsset, ImageGenerationNode } from '../shared/graph/types';
+import { isRunnable, type AppNode, type ImageAsset, type ImageGenerationNode, type ImageTransformNode } from '../shared/graph/types';
+import { describeTransform } from '../shared/graph/transforms';
 import { costBreakdown, estimateCost } from '../shared/graph/models';
-import { planRun, resolveInputs, runKey, validateNode, MAX_REFERENCES, type OutputLookup } from '../shared/graph/validate';
+import { planRun, resolveImages, resolveInputs, runKey, validateNode, MAX_REFERENCES, type OutputLookup } from '../shared/graph/validate';
 import type { ArtifactStore } from './artifacts';
 import { tx, type DB } from './db';
 import { ProviderError, type ImageProvider } from './providers/types';
+import { applyTransform } from './transforms';
+
+/** Provider id recorded for edits made on this computer. They have no model, no key and no cost. */
+const LOCAL = 'local';
 
 type ExecRow = {
   id: string;
@@ -139,7 +145,7 @@ export class Orchestrator {
       // History copied into a duplicate was paid for on the original board.
       if (!row.copied) {
         boardSpend += view.costUsd ?? 0;
-        if (row.status === 'succeeded') {
+        if (row.status === 'succeeded' && view.request?.provider !== LOCAL) {
           const split = view.request && view.usage ? costBreakdown(view.request.model, view.usage) : undefined;
           for (const s of [all, (byNode[row.node_id] ??= { generations: 0, textUsd: 0, imageUsd: 0 })]) {
             s.generations += 1;
@@ -150,7 +156,8 @@ export class Orchestrator {
       }
       if (!latest[row.node_id]) latest[row.node_id] = view;
       if (row.status === 'succeeded') {
-        (outputs[row.node_id] ??= []).push(...view.outputs);
+        // An edit shows only its latest result; a generation keeps everything it has made.
+        if (view.request?.provider !== LOCAL || !outputs[row.node_id]) (outputs[row.node_id] ??= []).push(...view.outputs);
         lastSucceeded[row.node_id] ??= { runKey: view.runKey, endedAt: view.endedAt };
       }
       if (activity.length < 500 && row.status !== 'queued' && row.status !== 'running') activity.push(view);
@@ -172,8 +179,10 @@ export class Orchestrator {
   /** Outputs of a node across all successful runs, newest first, used when its board holds no selection. */
   private priorOutputs(boardId: string, nodeId: string): ImageAsset[] {
     const rows = this.db
-      .prepare(`SELECT output_ids FROM node_executions WHERE board_id = ? AND node_id = ? AND status = 'succeeded' ORDER BY ended_at DESC LIMIT ?`)
-      .all(boardId, nodeId, MAX_REFERENCES) as { output_ids: string }[];
+      .prepare(`SELECT output_ids, request FROM node_executions WHERE board_id = ? AND node_id = ? AND status = 'succeeded' ORDER BY ended_at DESC LIMIT ?`)
+      .all(boardId, nodeId, MAX_REFERENCES) as { output_ids: string; request: string | null }[];
+    // An edit passes on only its latest result.
+    if (rows[0]?.request && (JSON.parse(rows[0].request) as { provider?: string }).provider === LOCAL) rows.length = 1;
     const out: ImageAsset[] = [];
     for (const r of rows) for (const id of JSON.parse(r.output_ids) as string[]) {
       const a = this.artifacts.get(id);
@@ -194,7 +203,7 @@ export class Orchestrator {
     const { nodes, edges } = this.loadRevision(boardId, revision);
     if (targetNodeId && !nodes.some((n) => n.id === targetNodeId)) throw new RunError('That node is not on the saved board.', 400);
     const order = planRun(nodes, edges, targetNodeId ?? undefined, upstream);
-    if (!order.length) throw new RunError('Add an Image Generation node to run this workflow.', 400);
+    if (!order.length) throw new RunError('Add an Image Generation or Image Transformation node to run this workflow.', 400);
 
     const runId = nanoid(10);
     const now = Date.now();
@@ -309,7 +318,7 @@ export class Orchestrator {
             return;
           }
           const node = nodes.find((n) => n.id === ex.node_id) as AppNode | undefined;
-          if (!node || node.type !== 'imageGeneration') {
+          if (!isRunnable(node)) {
             this.setExec(ex.id, { status: 'failed', error: 'Node is missing from the saved board.', error_category: 'internal', ended_at: now });
             failed.add(ex.node_id);
             return;
@@ -325,7 +334,8 @@ export class Orchestrator {
             failed.add(node.id);
             return;
           }
-          await this.runGeneration(runId, ex, node, nodes, edges, outputOf, produced, failed, controller.signal);
+          if (node.type === 'imageTransform') await this.runTransform(runId, ex, node, nodes, edges, outputOf, produced, failed, controller.signal);
+          else await this.runGeneration(runId, ex, node, nodes, edges, outputOf, produced, failed, controller.signal);
         } finally {
           release();
         }
@@ -382,7 +392,7 @@ export class Orchestrator {
       }
       if (!assets.length) throw new ProviderError('The provider returned no images.', 'outage', true);
       // A new run clears the pick, so everything the node has made is passed on, this run's images first.
-      produced.set(node.id, [...assets, ...this.priorOutputs(ex.board_id, node.id)].slice(0, MAX_REFERENCES));
+      produced.set(node.id, [...assets, ...this.priorOutputs(ex.board_id, node.id)].filter((a, i, all) => all.findIndex((x) => x.id === a.id) === i).slice(0, MAX_REFERENCES));
       this.setExec(ex.id, {
         status: 'succeeded',
         output_ids: JSON.stringify(assets.map((a) => a.id)),
@@ -396,6 +406,60 @@ export class Orchestrator {
       this.setExec(ex.id, {
         status: pe.category === 'canceled' ? 'canceled' : 'failed',
         error: pe.category === 'canceled' ? 'Canceled while generating.' : pe.message,
+        error_category: pe.category,
+        ended_at: Date.now(),
+      });
+    }
+  }
+
+  /** Edits every incoming image on this computer. Needs no provider, so it never waits on a key or a quota. */
+  private async runTransform(
+    runId: string,
+    ex: ExecRow,
+    node: ImageTransformNode,
+    nodes: AppNode[],
+    edges: { source: string; target: string; targetHandle?: string | null }[],
+    outputOf: OutputLookup,
+    produced: Map<string, ImageAsset[]>,
+    failed: Set<string>,
+    signal: AbortSignal,
+  ) {
+    const images = resolveImages(node, nodes, edges as never, outputOf);
+    const d = node.data;
+    const request = { prompt: '', referenceIds: images.map((i) => i.id), model: describeTransform(d.operation, d.options), aspectRatio: '', quality: '', provider: LOCAL, operation: d.operation, options: d.options };
+    this.setExec(ex.id, { status: 'running', started_at: Date.now(), request: JSON.stringify(request) });
+    try {
+      const assets: ImageAsset[] = [];
+      for (const img of images) {
+        if (signal.aborted) throw new ProviderError('Canceled.', 'canceled');
+        const f = this.artifacts.file(img.id);
+        if (!f) throw new ProviderError(`Image ${img.name} is missing from storage.`, 'invalid_input');
+        let result;
+        try {
+          result = await applyTransform(readFileSync(f.path), d.operation, d.options);
+        } catch (err) {
+          // Say which picture failed when several were sent through.
+          if (err instanceof ProviderError && images.length > 1) throw new ProviderError(`${img.name}: ${err.message}`, err.category);
+          throw err;
+        }
+        const base = img.name.replace(/\.[^.]+$/, '') || 'image';
+        assets.push(
+          await this.artifacts.save(result.data, {
+            name: `${base}-${d.operation}.${result.mime.split('/')[1]}`,
+            provider: LOCAL,
+            runId,
+            provenance: { runId, nodeId: node.id, sourceId: img.id, operation: d.operation, options: d.options },
+          }),
+        );
+      }
+      produced.set(node.id, assets);
+      this.setExec(ex.id, { status: 'succeeded', output_ids: JSON.stringify(assets.map((a) => a.id)), run_key: runKey(node, nodes, edges as never, outputOf), ended_at: Date.now() });
+    } catch (err) {
+      failed.add(node.id);
+      const pe = err instanceof ProviderError ? err : new ProviderError(err instanceof Error ? err.message : 'Edit failed.', 'internal');
+      this.setExec(ex.id, {
+        status: pe.category === 'canceled' ? 'canceled' : 'failed',
+        error: pe.category === 'canceled' ? 'Canceled while editing.' : pe.message,
         error_category: pe.category,
         ended_at: Date.now(),
       });

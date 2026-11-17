@@ -1,6 +1,7 @@
 import { CATALOG, PORT_TYPE_LABEL, getPort } from './catalog';
 import { settingsIssues } from './models';
-import type { AppEdge, AppNode, ImageAsset, ImageGenerationNode, NodeKind } from './types';
+import { getTransform, normalizeOptions, transformIssues } from './transforms';
+import { isRunnable, type AppEdge, type AppNode, type ImageAsset, type ImageGenerationNode, type ImageTransformNode, type NodeKind, type RunnableNode } from './types';
 
 export type ConnectionLike = {
   source: string | null;
@@ -86,7 +87,7 @@ export type ResolvedInputs = {
 };
 
 /** The one output the user picked, if any. */
-export function selectedOutput(n: ImageGenerationNode): ImageAsset | undefined {
+export function selectedOutput(n: RunnableNode): ImageAsset | undefined {
   const d = n.data;
   return d.selectedOutputId ? d.outputs.find((o) => o.id === d.selectedOutputId) : undefined;
 }
@@ -94,7 +95,7 @@ export function selectedOutput(n: ImageGenerationNode): ImageAsset | undefined {
 export const MAX_REFERENCES = 16;
 
 /** What a generation node passes downstream: the picked output, or with none picked, every output (newest first). */
-export function referenceOutputs(n: ImageGenerationNode): ImageAsset[] {
+export function referenceOutputs(n: RunnableNode): ImageAsset[] {
   const sel = selectedOutput(n);
   return sel ? [sel] : n.data.outputs.slice(0, MAX_REFERENCES);
 }
@@ -104,7 +105,7 @@ function incoming(edges: AppEdge[], nodeId: string, handle: string) {
 }
 
 /** Looks up the images a generation node currently passes downstream. */
-export type OutputLookup = (node: ImageGenerationNode) => ImageAsset[];
+export type OutputLookup = (node: RunnableNode) => ImageAsset[];
 
 export function resolveInputs(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = referenceOutputs): ResolvedInputs {
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -119,21 +120,35 @@ export function resolveInputs(node: ImageGenerationNode, nodes: AppNode[], edges
   for (const e of incoming(edges, node.id, 'references')) {
     const src = byId.get(e.source);
     if (src?.type === 'imageInput') references.push(...src.data.images);
-    if (src?.type === 'imageGeneration') {
-      references.push(...outputOf(src));
-    }
+    if (isRunnable(src)) references.push(...outputOf(src));
   }
   return { promptParts, prompt: promptParts.map((p) => p.text).join('\n\n'), references };
 }
 
+/** The images flowing into a transformation node. */
+export function resolveImages(node: ImageTransformNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = referenceOutputs): ImageAsset[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const images: ImageAsset[] = [];
+  for (const e of incoming(edges, node.id, 'image')) {
+    const src = byId.get(e.source);
+    if (src?.type === 'imageInput') images.push(...src.data.images);
+    if (isRunnable(src)) images.push(...outputOf(src));
+  }
+  // The same picture can arrive along two paths; it only needs editing once.
+  return images.filter((img, i) => images.findIndex((x) => x.id === img.id) === i);
+}
+
 /** Fingerprint used to tell whether an output is out of date. */
-export function runKey(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = referenceOutputs): string {
+export function runKey(node: RunnableNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = referenceOutputs): string {
+  if (node.type === 'imageTransform') {
+    return JSON.stringify([resolveImages(node, nodes, edges, outputOf).map((i) => i.id), node.data.operation, normalizeOptions(node.data.operation, node.data.options)]);
+  }
   const r = resolveInputs(node, nodes, edges, outputOf);
   const d = node.data;
   return JSON.stringify([r.prompt, r.references.map((i) => i.id), d.model, d.aspectRatio, d.quality]);
 }
 
-export function isStale(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[]): boolean {
+export function isStale(node: RunnableNode, nodes: AppNode[], edges: AppEdge[]): boolean {
   if (!node.data.lastRunKey || node.data.outputs.length === 0) return false;
   return node.data.lastRunKey !== runKey(node, nodes, edges);
 }
@@ -141,6 +156,15 @@ export function isStale(node: ImageGenerationNode, nodes: AppNode[], edges: AppE
 export type Issue = { nodeId: string; message: string; detail: string };
 
 export function validateNode(node: AppNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = referenceOutputs): Issue[] {
+  if (node.type === 'imageTransform') {
+    const issues: Issue[] = [];
+    if (!getTransform(node.data.operation)) issues.push({ nodeId: node.id, message: `${node.data.title}: unknown operation.`, detail: `"${node.data.operation}" is not an available operation.` });
+    for (const detail of transformIssues(node.data.operation, node.data.options)) issues.push({ nodeId: node.id, message: `${node.data.title}: ${detail}`, detail });
+    const n = resolveImages(node, nodes, edges, outputOf).length;
+    if (n === 0) issues.push({ nodeId: node.id, message: `${node.data.title}: needs an image.`, detail: 'Needs an image to edit. Connect an Image Input or an Image Generation node.' });
+    if (n > MAX_REFERENCES) issues.push({ nodeId: node.id, message: `${node.data.title}: too many images.`, detail: `Too many images (max ${MAX_REFERENCES}).` });
+    return issues;
+  }
   if (node.type !== 'imageGeneration') return [];
   const r = resolveInputs(node, nodes, edges, outputOf);
   const issues: Issue[] = [];
@@ -162,7 +186,7 @@ export function validateGraph(nodes: AppNode[], edges: AppEdge[]): Issue[] {
  * the target itself runs, using whatever its inputs last produced.
  */
 export function planRun(nodes: AppNode[], edges: AppEdge[], targetId?: string, upstream = true): string[] {
-  const gen = new Set(nodes.filter((n) => n.type === 'imageGeneration').map((n) => n.id));
+  const gen = new Set(nodes.filter(isRunnable).map((n) => n.id));
   let wanted: Set<string>;
   if (targetId) {
     wanted = new Set();

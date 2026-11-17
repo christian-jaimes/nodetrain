@@ -78,8 +78,9 @@ const STATUS: Record<RunStatus | 'stale', { label: string; Icon: typeof Check }>
   stale: { label: 'Out of date: inputs changed', Icon: RefreshCw },
 };
 
-export function StatusChip({ status }: { status: RunStatus | 'stale' }) {
-  const { label, Icon } = STATUS[status];
+export function StatusChip({ status, runningLabel }: { status: RunStatus | 'stale'; /** Replaces "Generating…" for nodes that edit rather than generate. */ runningLabel?: string }) {
+  const { label: base, Icon } = STATUS[status];
+  const label = status === 'running' && runningLabel ? runningLabel : base;
   return (
     <span className={`status-chip status-chip--${status}`}>
       <Icon size={13} className={status === 'running' ? 'spin' : undefined} aria-hidden />
