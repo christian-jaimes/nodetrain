@@ -89,7 +89,7 @@ export function StatusChip({ status }: { status: RunStatus | 'stale' }) {
 }
 
 /** One image fills the width at its own aspect ratio; several become a mosaic of at most 4 tiles, the 4th reading "+N more". */
-export function ImageMosaic({ images, alt }: { images: ImageAsset[]; alt?: (img: ImageAsset) => string }) {
+export function ImageMosaic({ images, alt, onPick }: { images: ImageAsset[]; alt?: (img: ImageAsset) => string; onPick?: (id: string) => void }) {
   const first = images[0];
   if (!first) return null;
   const label = (img: ImageAsset) => (alt ? alt(img) : img.name);
@@ -113,7 +113,7 @@ export function ImageMosaic({ images, alt }: { images: ImageAsset[]; alt?: (img:
   return (
     <div className={`image-grid image-grid--${tiles.length + (more ? 1 : 0)}`} style={{ aspectRatio: String(ratio) }}>
       {tiles.map((img) => (
-        <img key={img.id} src={img.thumb ?? img.src} alt={label(img)} draggable={false} />
+        <img key={img.id} src={img.thumb ?? img.src} alt={label(img)} draggable={false} className={onPick ? 'is-pickable' : undefined} title={onPick ? 'Click to use only this image' : undefined} onClick={onPick ? () => onPick(img.id) : undefined} />
       ))}
       {more > 0 && <span className="image-grid__more">+{more} more</span>}
     </div>

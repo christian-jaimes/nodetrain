@@ -6,7 +6,7 @@ import type { ImageGenerationNode as GenNode } from '../../../shared/graph/types
 import { isStale, resolveInputs } from '../../../shared/graph/validate';
 
 import { useBoard } from '../../store/board';
-import { NodeShell, OutputGallery } from './parts';
+import { ImageMosaic, NodeShell, OutputGallery } from './parts';
 
 type Option = string | { value: string; label: string; disabled?: boolean };
 
@@ -99,6 +99,7 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
   const [pw, ph] = aspectSize(data.aspectRatio);
   const selectOutput = useBoard((s) => s.selectOutput);
   const shown = data.outputs;
+  const picked = data.selectedOutputId ? shown.find((o) => o.id === data.selectedOutputId) : undefined;
 
   return (
     <NodeShell
@@ -124,7 +125,12 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
         style={shown.length ? undefined : { aspectRatio: `${pw} / ${ph}` }}
       >
         {shown.length ? (
-          <OutputGallery images={shown} selectedId={data.selectedOutputId} onSelect={(oid) => selectOutput(id, oid)} alt={() => `Output of ${data.title}`} />
+          // With nothing picked every image is passed on, so show them the way an Image Input node does.
+          picked ? (
+            <OutputGallery images={shown} selectedId={picked.id} onSelect={(oid) => selectOutput(id, oid)} alt={() => `Output of ${data.title}`} />
+          ) : (
+            <ImageMosaic images={shown} alt={() => `Output of ${data.title}`} onPick={shown.length > 1 ? (oid) => selectOutput(id, oid) : undefined} />
+          )
         ) : (
           <div className="gen-output__empty">
             <Sparkles size={20} />
