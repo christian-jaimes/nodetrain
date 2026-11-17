@@ -27,9 +27,13 @@ function Workspace() {
   const galleryOpen = useBoard((s) => s.galleryOpen);
   const starting = open && showStart && empty;
 
-  // Opening the start page folds the sidebar into its bar; the user can expand it again.
+  // Opening the start page folds the sidebar into its bar, and leaving it (a blank or template workflow was created) opens it again.
+  // The user can still toggle it by hand in between.
+  const wasStarting = useRef(false);
   useEffect(() => {
     if (starting) setCollapsed(true);
+    else if (wasStarting.current) setCollapsed(false);
+    wasStarting.current = starting;
   }, [starting]);
 
   useEffect(() => {
@@ -92,10 +96,11 @@ function Workspace() {
       {galleryOpen ? <div className="scrim" onClick={() => useBoard.getState().boardId && useBoard.getState().setGalleryOpen(false)} /> : null}
       <Sidebar ref={searchRef} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
       {open && !starting ? <TitleBar /> : null}
+      {/* Before the canvas in the DOM and at z-index 0, so the tips sit behind anything on the canvas, such as a node created while they show. */}
+      {open && !starting && !galleryOpen ? <HintBar key={boardId} /> : null}
       <Canvas />
       {loaded && starting ? <StartScreen /> : null}
       {open ? <Inspector /> : null}
-      {open && !starting && !galleryOpen ? <HintBar key={boardId} /> : null}
       <NodePicker />
       {templatesOpen ? <TemplatesModal /> : null}
       {settingsOpen ? <AccountSettings /> : null}
