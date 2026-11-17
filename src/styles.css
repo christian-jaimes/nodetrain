@@ -16,6 +16,7 @@
   --accent-fill: #e11d2e;
   --accent-fill-hover: #c91728;
   --accent-soft: rgba(242, 41, 58, 0.14);
+  --accent-dim: rgba(242, 41, 41, 0.026);
   --accent-deep: #6e1820;
   --port-text: #b892ff;
   --port-image: #f2293a;
@@ -2309,7 +2310,7 @@ input.insp-head__title:focus {
 .group-frame.is-active {
   /* Selected: the container dims so the nodes stand out. */
   border-color: var(--accent);
-  background: rgba(0, 0, 0, 0.38);
+  background: var(--accent-dim);
 }
 .group-frame__title,
 .group-frame__input {
