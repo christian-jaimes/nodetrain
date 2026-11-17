@@ -2307,8 +2307,9 @@ input.insp-head__title:focus {
   cursor: grabbing;
 }
 .group-frame.is-active {
+  /* Selected: the container dims so the nodes stand out. */
   border-color: var(--accent);
-  background: var(--accent-soft);
+  background: rgba(0, 0, 0, 0.38);
 }
 .group-frame__title,
 .group-frame__input {

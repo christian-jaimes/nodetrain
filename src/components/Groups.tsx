@@ -85,7 +85,8 @@ export function Groups() {
       {groups.map((g) => {
         const box = boundsOf(g.nodeIds.map((id) => byId.get(id)!).filter(Boolean));
         if (!box) return null;
-        const active = g.nodeIds.some((id) => byId.get(id)?.selected);
+        // Only a fully selected group counts as selected; picking one node inside it leaves the container as it was.
+        const active = g.nodeIds.every((id) => byId.get(id)?.selected);
         return (
           <div
             key={g.id}

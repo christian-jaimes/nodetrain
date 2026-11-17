@@ -9,7 +9,7 @@ import {
   type NodeTypes,
   SelectionMode,
 } from '@xyflow/react';
-import { useEffect, useMemo, type DragEvent, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, type DragEvent, type MouseEvent } from 'react';
 import { getPort } from '../../shared/graph/catalog';
 import { FIT_OPTIONS } from '../lib/ui';
 import type { AppEdge, AppNode, NodeKind } from '../../shared/graph/types';
@@ -39,6 +39,7 @@ export function Canvas() {
   const addNode = useBoard((s) => s.addNode);
   const setPicker = useBoard((s) => s.setPicker);
   const { screenToFlowPosition, fitView } = useReactFlow();
+  const draggedRef = useRef(false);
   const tool = useBoard((s) => s.tool);
   const fitNonce = useBoard((s) => s.fitNonce);
   const measured = useNodesInitialized();
@@ -128,7 +129,17 @@ export function Canvas() {
         onConnectEnd={onConnectEnd}
         isValidConnection={isValidConnection}
         onPaneClick={() => useBoard.getState().setHistoryOpen(false)}
-        onNodeDragStart={() => commit()}
+        onNodeDragStart={() => {
+          draggedRef.current = true;
+          commit();
+        }}
+        onNodeDragStop={() => setTimeout(() => (draggedRef.current = false), 0)}
+        // Dragging any node of a selected group moves them all, but a plain click picks just that node.
+        onNodeClick={(e, node) => {
+          if (draggedRef.current || e.shiftKey || e.metaKey || e.ctrlKey) return;
+          const s = useBoard.getState();
+          if (s.nodes.filter((n) => n.selected).length > 1) s.selectNodes([node.id]);
+        }}
         onSelectionDragStart={() => commit()}
         forceColorMode="dark"
         zoomOnDoubleClick={false}
