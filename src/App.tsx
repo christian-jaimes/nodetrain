@@ -27,6 +27,11 @@ function Workspace() {
   const galleryOpen = useBoard((s) => s.galleryOpen);
   const starting = open && showStart && empty;
 
+  // Opening the start page folds the sidebar into its bar; the user can expand it again.
+  useEffect(() => {
+    if (starting) setCollapsed(true);
+  }, [starting]);
+
   useEffect(() => {
     void useBoard.getState().init();
   }, []);
