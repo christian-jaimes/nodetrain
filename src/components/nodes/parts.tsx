@@ -1,8 +1,9 @@
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, useNodeId } from '@xyflow/react';
 import { CircleDashed, Check, Clock, LoaderCircle, RefreshCw, TriangleAlert } from 'lucide-react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { CATALOG, PORT_TYPE_LABEL } from '../../../shared/graph/catalog';
 import type { ImageAsset, NodeKind, PortDef, RunStatus } from '../../../shared/graph/types';
+import { useBoard } from '../../store/board';
 import { NodeIconTile } from '../icons';
 
 export function NodeShell({
@@ -31,6 +32,12 @@ export function NodeShell({
           <div className="nt-node__subtitle">{CATALOG[kind].label}</div>
         </div>
         {action}
+        {CATALOG[kind].inputs.map((p, i) => (
+          <Port key={p.id} port={p} side="in" index={i} />
+        ))}
+        {CATALOG[kind].outputs.map((p) => (
+          <Port key={p.id} port={p} side="out" />
+        ))}
       </div>
       {status}
       <div className="nt-node__body">{children}</div>
@@ -38,18 +45,26 @@ export function NodeShell({
   );
 }
 
-/** A typed port. Type is shown by shape, colour and a tooltip, never colour alone. */
-export function Port({ port, side, style }: { port: PortDef; side: 'in' | 'out'; style?: CSSProperties }) {
+/**
+ * A typed port. Type is shown by shape, colour and a tooltip, never colour alone.
+ * Nodes connect by dropping one onto another, so a port only shows once it has a link, at the top corner of the node:
+ * inputs on the left, the output on the right. `index` stacks a node's further inputs below the first.
+ */
+export function Port({ port, side, index = 0 }: { port: PortDef; side: 'in' | 'out'; index?: number }) {
+  const nodeId = useNodeId();
+  const connected = useBoard((s) =>
+    s.edges.some((e) => (side === 'out' ? e.source === nodeId && e.sourceHandle === port.id : e.target === nodeId && e.targetHandle === port.id)),
+  );
   return (
     <Handle
       id={port.id}
       type={side === 'in' ? 'target' : 'source'}
       position={side === 'in' ? Position.Left : Position.Right}
-      className={`nt-port nt-port--${port.type}`}
-      style={style}
+      className={`nt-port nt-port--${port.type} ${connected ? 'is-connected' : 'is-idle'}`}
+      style={index ? { top: `calc(50% + ${index * 26}px)` } : undefined}
       role="img"
       title={`${port.label} · ${PORT_TYPE_LABEL[port.type]}${port.multi ? ' (accepts several)' : ''}`}
-      aria-label={`${side === 'in' ? 'Input' : 'Output'}: ${port.label}, type ${PORT_TYPE_LABEL[port.type]}`}
+      aria-label={`${side === 'in' ? 'Input' : 'Output'}: ${port.label}, type ${PORT_TYPE_LABEL[port.type]}${connected ? ', connected' : ''}`}
     />
   );
 }

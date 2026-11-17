@@ -1,11 +1,10 @@
 import type { NodeProps } from '@xyflow/react';
 import { ImagePlus, Upload } from 'lucide-react';
 import { useRef, useState, type DragEvent } from 'react';
-import { CATALOG } from '../../../shared/graph/catalog';
 import type { ImageInputNode as ImageInputNodeType } from '../../../shared/graph/types';
 import { importImage } from '../../lib/images';
 import { useBoard } from '../../store/board';
-import { ImageMosaic, NodeShell, Port } from './parts';
+import { ImageMosaic, NodeShell } from './parts';
 
 export function useImageImport(nodeId: string) {
   const notify = useBoard((s) => s.notify);
@@ -44,12 +43,9 @@ export function ImageInputNode({ id, data, selected }: NodeProps<ImageInputNodeT
       selected={selected}
       width={300}
       action={
-        <>
-          <button className="icon-btn nodrag" title="Upload images" aria-label="Upload images" onClick={() => fileRef.current?.click()}>
-            <Upload size={16} />
-          </button>
-          <Port port={CATALOG.imageInput.outputs[0]} side="out" />
-        </>
+        <button className="icon-btn nodrag" title="Upload images" aria-label="Upload images" onClick={() => fileRef.current?.click()}>
+          <Upload size={16} />
+        </button>
       }
     >
       <input

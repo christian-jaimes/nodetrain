@@ -57,6 +57,8 @@ type BoardState = {
   renameGroup: (id: string, title: string) => void;
   /** Shifts these nodes by a distance in canvas units. Used when a group's container is dragged. */
   moveNodes: (ids: string[], dx: number, dy: number) => void;
+  /** Puts one node at an exact canvas position. */
+  setNodePosition: (id: string, position: { x: number; y: number }) => void;
   past: Snapshot[];
   future: Snapshot[];
   lastCommit: { key: string; at: number } | null;
@@ -469,6 +471,10 @@ export const useBoard = create<BoardState>((set, get) => {
     moveNodes: (ids, dx, dy) => {
       const want = new Set(ids);
       set({ nodes: get().nodes.map((n) => (want.has(n.id) ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } } : n)) });
+    },
+
+    setNodePosition: (id, position) => {
+      set({ nodes: get().nodes.map((n) => (n.id === id ? { ...n, position } : n)) });
     },
 
     renameGroup: (id, title) => {

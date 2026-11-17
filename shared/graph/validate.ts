@@ -49,6 +49,29 @@ export function checkConnection(nodes: AppNode[], edges: AppEdge[], c: Connectio
   return { ok: true };
 }
 
+/**
+ * Works out the link made by dropping node `sourceId` onto node `targetId`: the first output of the dropped node
+ * into the first input of the target that accepts its type. When nothing fits, says why.
+ */
+export function planDrop(nodes: AppNode[], edges: AppEdge[], sourceId: string, targetId: string): { ok: true; connection: ConnectionLike } | { ok: false; reason: string } {
+  const src = nodes.find((n) => n.id === sourceId);
+  const tgt = nodes.find((n) => n.id === targetId);
+  if (!src || !tgt) return { ok: false, reason: 'Node not found.' };
+  const out = CATALOG[src.type as NodeKind].outputs[0];
+  const inputs = CATALOG[tgt.type as NodeKind].inputs;
+  if (!out) return { ok: false, reason: `${src.data.title} has no output to connect.` };
+  if (!inputs.length) return { ok: false, reason: `${tgt.data.title} takes no inputs.` };
+  let first: CheckResult | null = null;
+  for (const inp of inputs) {
+    const connection = { source: sourceId, sourceHandle: out.id, target: targetId, targetHandle: inp.id };
+    const r = checkConnection(nodes, edges, connection);
+    if (r.ok) return { ok: true, connection };
+    // Prefer the reason from an input of the right type; a type mismatch on the other port is noise.
+    if (!first || inp.type === out.type) first = r;
+  }
+  return first as { ok: false; reason: string };
+}
+
 /** Inputs of `kind` that accept `type`, for drag-to-create. */
 export function compatibleInputs(kind: NodeKind, type: 'text' | 'image') {
   return CATALOG[kind].inputs.filter((p) => p.type === type);
