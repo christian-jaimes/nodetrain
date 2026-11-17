@@ -221,7 +221,7 @@ function GenerationProps({ node }: { node: GenNode }) {
         <span className="field-label">Output</span>
         {d.outputs.length ? (
           <>
-            <OutputGallery images={d.outputs} selectedId={d.selectedOutputId} onSelect={(oid) => selectOutput(node.id, oid)} alt={() => 'Output'} />
+            <OutputGallery fit="natural" images={d.outputs} selectedId={d.selectedOutputId} onSelect={(oid) => selectOutput(node.id, oid)} alt={() => 'Output'} />
             <p className="muted small">
               {out ? 'Only the selected image is used as a reference downstream. Click it again to use all.' : 'Select an image to use only it as a reference. With none selected, all are used.'}
             </p>

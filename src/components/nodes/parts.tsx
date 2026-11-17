@@ -129,7 +129,10 @@ export function OutputGallery({
   selectedId,
   onSelect,
   alt,
+  fit = 'box',
 }: {
+  /** 'box': keep the area a single image would take (crops slightly to make room for the strip). 'natural': image at its own ratio. */
+  fit?: 'box' | 'natural';
   images: ImageAsset[];
   selectedId?: string;
   onSelect: (id: string | undefined) => void;
@@ -140,7 +143,7 @@ export function OutputGallery({
   if (!big) return null;
   return (
     // The gallery takes the same box a single image would, so the card keeps its size; the big image shrinks to make room for the strip.
-    <div className="gallery" style={{ aspectRatio: `${big.width} / ${big.height}` }}>
+    <div className={`gallery gallery--${fit}`} style={fit === 'box' ? { aspectRatio: `${big.width} / ${big.height}` } : undefined}>
       <img className="gallery__big" src={big.src} alt={alt ? alt(big) : big.name} draggable={false} />
       {images.length > 1 ? (
         <div className="gallery__thumbs nodrag nowheel" role="group" aria-label="Generations">
