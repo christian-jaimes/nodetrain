@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { del as idbDel, get as idbGet } from 'idb-keyval';
 import type { NodeChangeset, EdgeChangeset, XYPosition } from '@xyflow/react';
-import { EMPTY_SPEND, type BoardPayload, type BoardRunState, type BoardSummary, type NodeExecutionView, type Profile, type RunView } from '../../shared/api';
+import { EMPTY_SPEND, type BoardPayload, type BoardRunState, type BoardSummary, type NodeExecutionView, type Profile, type RunView, type UserTemplate } from '../../shared/api';
 import { CATALOG, getPort } from '../../shared/graph/catalog';
 import { fromDocument, migrateDocument, toDocument } from '../../shared/graph/document';
 import { checkConnection, planRun, type CheckResult, type ConnectionLike } from '../../shared/graph/validate';
@@ -58,6 +58,13 @@ type BoardState = {
   settingsOpen: boolean;
   busy: string | null;
   saveState: SaveState;
+  /** Counts completed saves, so the title bar can flash "Saved" after each one (and not when a workflow merely opens). */
+  savedTick: number;
+  userTemplates: UserTemplate[];
+  refreshTemplates: () => Promise<void>;
+  /** Saves the open workflow into the user's templates. */
+  saveAsTemplate: () => Promise<void>;
+  deleteTemplate: (id: string) => Promise<void>;
   saveError: string | null;
   toast: Toast | null;
   picker: PickerState | null;
@@ -184,7 +191,7 @@ export const useBoard = create<BoardState>((set, get) => {
       try {
         const saved = await api.saveBoard(s.boardId!, { name: s.name, baseRevision: s.revision, document: toDocument(s.nodes, s.edges) });
         lastSavedJson = json;
-        set({ revision: saved.revision, saveState: docJson() === json ? 'saved' : 'saving', saveError: null, offline: false });
+        set({ revision: saved.revision, saveState: docJson() === json ? 'saved' : 'saving', saveError: null, offline: false, savedTick: get().savedTick + 1 });
       } catch (err) {
         set({ saveState: 'error', saveError: errorText(err), offline: err instanceof OfflineError });
         throw err;
@@ -326,6 +333,8 @@ export const useBoard = create<BoardState>((set, get) => {
     settingsOpen: false,
     busy: null,
     saveState: 'idle',
+    savedTick: 0,
+    userTemplates: [],
     saveError: null,
     toast: null,
     picker: null,
@@ -603,6 +612,35 @@ export const useBoard = create<BoardState>((set, get) => {
       }
     },
 
+    refreshTemplates: async () => {
+      try {
+        set({ userTemplates: await api.listTemplates() });
+      } catch {
+        // The server banner already explains an unreachable server.
+      }
+    },
+
+    saveAsTemplate: async () => {
+      const s = get();
+      if (!s.boardId) return;
+      try {
+        await api.saveTemplate(s.name, toDocument(s.nodes, s.edges));
+        await get().refreshTemplates();
+        get().notify(`Saved “${s.name}” to your templates.`);
+      } catch (err) {
+        get().notify(errorText(err), 'error');
+      }
+    },
+
+    deleteTemplate: async (id) => {
+      try {
+        await api.deleteTemplate(id);
+        await get().refreshTemplates();
+      } catch (err) {
+        get().notify(errorText(err), 'error');
+      }
+    },
+
     setProfile: (profile) => set({ profile }),
 
     setShowStart: (v) => set({ showStart: v }),
@@ -628,6 +666,7 @@ export const useBoard = create<BoardState>((set, get) => {
       try {
         const health = await api.health();
         set({ provider: { id: health.provider.id, label: health.provider.label } });
+        void get().refreshTemplates();
         void api.profile().then((profile) => set({ profile }), () => {});
         let board: BoardPayload | null = null;
         const lastId = localStorage.getItem(LAST_BOARD_KEY);

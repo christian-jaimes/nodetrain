@@ -11,7 +11,7 @@ import {
 import { useEffect, useMemo, type DragEvent, type MouseEvent } from 'react';
 import { getPort } from '../../shared/graph/catalog';
 import { FIT_OPTIONS } from '../lib/ui';
-import { FlickeringGrid } from './FlickeringGrid';
+import { DotPattern } from './DotPattern';
 import type { AppEdge, AppNode, NodeKind } from '../../shared/graph/types';
 import { checkConnection } from '../../shared/graph/validate';
 import { useBoard } from '../store/board';
@@ -116,7 +116,7 @@ export function Canvas() {
 
   return (
     <div className="canvas" onDoubleClick={onDoubleClick} onDragOver={onDragOver} onDrop={onDrop}>
-      <FlickeringGrid className="canvas__grid" seed={8} speed={0.75} shape="dot" size={2} gap={8} contrast={0.75} intensity={0.4} scale={1.2} />
+      <DotPattern className="canvas__grid" gap={18} size={1} glow={1} glowColor="#FF0000" radius={110} />
       <ReactFlow<AppNode, AppEdge>
         nodes={nodes}
         edges={edges}
@@ -139,10 +139,9 @@ export function Canvas() {
         maxZoom={2.5}
         fitView
         fitViewOptions={FIT_OPTIONS}
-        attributionPosition="bottom-center"
+        proOptions={{ hideAttribution: true }}
         connectionRadius={28}
-      >
-      </ReactFlow>
+      />
     </div>
   );
 }

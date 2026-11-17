@@ -74,6 +74,15 @@ const MIGRATIONS: string[] = [
   ALTER TABLE boards ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE node_executions ADD COLUMN copied INTEGER NOT NULL DEFAULT 0;
   `,
+  // 4: workflows the user saved as templates.
+  `
+  CREATE TABLE user_templates (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    document TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 export type DB = DatabaseSync;

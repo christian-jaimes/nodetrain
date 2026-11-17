@@ -338,6 +338,9 @@ button:disabled {
   gap: 10px;
 }
 .titlebar__name {
+  /* Above the menu's click-away layer, so a double-click lands on the title itself. */
+  position: relative;
+  z-index: 41;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -389,6 +392,9 @@ button:disabled {
   text-align: left;
   padding: 9px 12px;
   border-radius: 8px;
+}
+.menu .is-danger {
+  color: var(--err);
 }
 .menu button:hover,
 .menu button:focus-visible {
@@ -1235,7 +1241,7 @@ input.insp-head__title:focus {
 
 /* ---------- React Flow overrides ---------- */
 .react-flow {
-  /* Transparent so the flickering grid behind the canvas shows through. */
+  /* Transparent so the dot pattern behind the canvas shows through. */
   --xy-background-color: transparent;
 }
 .canvas__grid {
@@ -1289,34 +1295,33 @@ input.insp-head__title:focus {
 .hintbar span {
   color: var(--text-3);
 }
-.zoom {
-  position: absolute;
-  z-index: 9;
-  bottom: 20px;
-  left: 300px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+.hintbar--center {
+  bottom: auto;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
 }
-.is-collapsed .zoom {
-  left: 20px;
+.hintbar {
+  animation: hint-in 0.4s ease both;
 }
-.zoom button {
-  font-size: 16px;
+.hintbar.is-leaving {
+  animation: hint-out 0.5s ease both;
 }
-.zoom__value {
-  font-size: 12.5px !important;
-  min-width: 48px;
-  padding: 4px;
-  border-radius: 8px;
-  color: var(--text-2);
+@keyframes hint-in {
+  from {
+    opacity: 0;
+  }
 }
-.zoom__value:hover {
-  background: var(--field-hover);
+@keyframes hint-out {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hintbar,
+  .hintbar.is-leaving {
+    animation: none;
+  }
 }
 
 /* ---------- Start screen ---------- */
@@ -1555,13 +1560,6 @@ input.insp-head__title:focus {
   background: #33191c;
 }
 
-.react-flow__attribution {
-  background: transparent;
-  opacity: 0.5;
-}
-.react-flow__attribution a {
-  color: var(--text-3);
-}
 
 .activity__thumbs {
   display: flex;
@@ -1648,23 +1646,6 @@ input.insp-head__title:focus {
   border-radius: var(--radius-field);
 }
 
-.provider-pill {
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  color: var(--text-2);
-  cursor: help;
-}
-.provider-pill--simulated {
-  color: var(--warn);
-  border-color: rgba(251, 191, 36, 0.4);
-}
-.provider-pill--openai {
-  color: var(--ok);
-  border-color: rgba(74, 222, 128, 0.35);
-}
 .provider-hint {
   margin: -6px 0 0;
   font-size: 12.5px;
@@ -1851,11 +1832,6 @@ input.insp-head__title:focus {
 .secondary-btn--danger {
   align-self: flex-start;
   color: var(--err);
-}
-button.provider-pill {
-  font-family: inherit;
-  background: transparent;
-  cursor: pointer;
 }
 .inline-link {
   padding: 0;

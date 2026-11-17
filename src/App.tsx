@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AccountSettings } from './components/AccountSettings';
 import { Canvas } from './components/Canvas';
 import { Inspector } from './components/Inspector';
-import { Busy, HintBar, NodePicker, ServerBanner, StartScreen, TemplatesModal, TitleBar, Toast, ZoomControls } from './components/Overlays';
+import { Busy, HintBar, NodePicker, ServerBanner, StartScreen, TemplatesModal, TitleBar, Toast } from './components/Overlays';
 import { Sidebar } from './components/Sidebar';
 import { useBoard } from './store/board';
 import { FIT_OPTIONS } from './lib/ui';
@@ -22,7 +22,8 @@ function Workspace() {
   const [collapsed, setCollapsed] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const { fitView } = useReactFlow();
-  const open = useBoard((s) => s.boardId !== null);
+  const boardId = useBoard((s) => s.boardId);
+  const open = boardId !== null;
   const galleryOpen = useBoard((s) => s.galleryOpen);
   const starting = open && showStart && empty;
 
@@ -83,8 +84,7 @@ function Workspace() {
       <Canvas />
       {loaded && starting ? <StartScreen /> : null}
       {open && !starting ? <Inspector /> : null}
-      {open && !starting ? <HintBar /> : null}
-      {open && !starting ? <ZoomControls /> : null}
+      {open && !starting && !galleryOpen ? <HintBar key={boardId} /> : null}
       <NodePicker />
       {templatesOpen ? <TemplatesModal /> : null}
       {settingsOpen ? <AccountSettings /> : null}

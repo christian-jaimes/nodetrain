@@ -1,4 +1,4 @@
-import type { BoardPayload, BoardRunState, BoardSummary, KeyProviderId, Profile, ProviderStatus, RunView, SaveBoardRequest } from '../../shared/api';
+import type { BoardPayload, BoardRunState, BoardSummary, KeyProviderId, Profile, ProviderStatus, RunView, SaveBoardRequest, UserTemplate } from '../../shared/api';
 import type { BoardDocument } from '../../shared/graph/document';
 import type { ImageAsset } from '../../shared/graph/types';
 
@@ -50,6 +50,9 @@ export const api = {
   setFavorite: (id: string, favorite: boolean) => request<BoardPayload>('PATCH', `/api/boards/${id}`, { favorite }),
   duplicateBoard: (id: string) => request<BoardPayload>('POST', `/api/boards/${id}/duplicate`),
   deleteBoard: (id: string) => request<void>('DELETE', `/api/boards/${id}`),
+  listTemplates: () => request<UserTemplate[]>('GET', '/api/templates'),
+  saveTemplate: (name: string, document: BoardDocument) => request<UserTemplate>('POST', '/api/templates', { name, document }),
+  deleteTemplate: (id: string) => request<void>('DELETE', `/api/templates/${id}`),
   boardState: (id: string) => request<BoardRunState>('GET', `/api/boards/${id}/state`),
   startRun: (boardId: string, revision: number, targetNodeId?: string, upstream = true) => request<RunView>('POST', `/api/boards/${boardId}/runs`, { revision, targetNodeId, upstream }),
   getRun: (id: string) => request<RunView>('GET', `/api/runs/${id}`),

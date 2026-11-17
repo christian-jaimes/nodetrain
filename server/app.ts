@@ -4,7 +4,7 @@ import { Readable } from 'node:stream';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { nanoid } from 'nanoid';
-import { KEY_PROVIDERS, type BoardPayload, type BoardSummary, type SaveBoardRequest } from '../shared/api';
+import { KEY_PROVIDERS, type BoardPayload, type BoardSummary, type SaveBoardRequest, type UserTemplate } from '../shared/api';
 import { DocumentError, migrateDocument, type BoardDocument } from '../shared/graph/document';
 import { ArtifactError, ArtifactStore, MAX_UPLOAD_BYTES } from './artifacts';
 import { openDatabase, tx, type DB } from './db';
@@ -215,6 +215,29 @@ export function createApp({ dataDir, provider = new SimulatedProvider(), provide
     // Revisions go with the board. Run history and image files are kept.
     const info = db.prepare('DELETE FROM boards WHERE id = ?').run(id);
     return info.changes ? c.body(null, 204) : c.json({ error: 'Board not found.' }, 404);
+  });
+
+  // ---------- Templates saved by the user ----------
+
+  type TemplateRow = { id: string; name: string; document: string; created_at: number };
+  const templateOf = (r: TemplateRow): UserTemplate => {
+    const document = JSON.parse(r.document) as BoardDocument;
+    return { id: r.id, name: r.name, createdAt: r.created_at, nodeKinds: document.nodes.slice(0, 6).map((n) => n.type), document };
+  };
+
+  app.get('/api/templates', (c) => c.json((db.prepare('SELECT * FROM user_templates ORDER BY created_at DESC').all() as TemplateRow[]).map(templateOf)));
+
+  app.post('/api/templates', async (c) => {
+    const body = (await c.req.json()) as { name?: string; document?: unknown };
+    const doc = migrateDocument(body.document);
+    const row: TemplateRow = { id: nanoid(10), name: cleanName(body.name), document: JSON.stringify(doc), created_at: Date.now() };
+    db.prepare('INSERT INTO user_templates (id, name, document, created_at) VALUES (?, ?, ?, ?)').run(row.id, row.name, row.document, row.created_at);
+    return c.json(templateOf(row), 201);
+  });
+
+  app.delete('/api/templates/:id', (c) => {
+    const info = db.prepare('DELETE FROM user_templates WHERE id = ?').run(c.req.param('id'));
+    return info.changes ? c.body(null, 204) : c.json({ error: 'Template not found.' }, 404);
   });
 
   app.get('/api/boards/:id/state', (c) => c.json(runs.boardState(c.req.param('id'))));
