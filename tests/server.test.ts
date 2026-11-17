@@ -82,6 +82,20 @@ describe('boards', () => {
   });
 });
 
+describe('user templates', () => {
+  it('saves a workflow as a template, lists it and deletes it', async () => {
+    make();
+    const doc = toDocument([node('p', 'prompt'), node('g', 'imageGeneration')], [edge('p', 'g', 'text', 'prompt')]);
+    const created = await json<{ id: string; name: string; nodeKinds: string[] }>(call('POST', '/api/templates', { name: 'Mine', document: doc }));
+    expect(created.name).toBe('Mine');
+    expect(created.nodeKinds).toEqual(['prompt', 'imageGeneration']);
+    expect(await json<unknown[]>(call('GET', '/api/templates'))).toHaveLength(1);
+    expect((await call('DELETE', `/api/templates/${created.id}`)).status).toBe(204);
+    expect(await json<unknown[]>(call('GET', '/api/templates'))).toHaveLength(0);
+    expect((await call('POST', '/api/templates', { name: 'Bad', document: { nope: true } })).status).toBe(400);
+  });
+});
+
 describe('artifacts', () => {
   it('stores a real image once and serves it', async () => {
     make();

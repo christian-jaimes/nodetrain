@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AccountSettings } from './components/AccountSettings';
 import { Canvas } from './components/Canvas';
 import { Inspector } from './components/Inspector';
-import { Busy, HintBar, NodePicker, ServerBanner, StartScreen, TemplatesModal, TitleBar, Toast, ZoomControls } from './components/Overlays';
+import { Busy, HintBar, NodePicker, ServerBanner, StartScreen, TemplatesModal, TitleBar, Toast } from './components/Overlays';
 import { Sidebar } from './components/Sidebar';
 import { useBoard } from './store/board';
 import { FIT_OPTIONS } from './lib/ui';
@@ -22,7 +22,8 @@ function Workspace() {
   const [collapsed, setCollapsed] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const { fitView } = useReactFlow();
-  const open = useBoard((s) => s.boardId !== null);
+  const boardId = useBoard((s) => s.boardId);
+  const open = boardId !== null;
   const galleryOpen = useBoard((s) => s.galleryOpen);
   const starting = open && showStart && empty;
 
@@ -62,7 +63,13 @@ function Workspace() {
       } else if (mod && (key === 'y' || (key === 'z' && e.shiftKey))) {
         e.preventDefault();
         s.redo();
-      } else if (mod && key === 'c') s.copySelection();
+      } else if (mod && key === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) s.ungroup();
+        else s.groupSelection();
+      } else if (!mod && !e.altKey && key === 'v') s.setTool('select');
+      else if (!mod && !e.altKey && key === 'h') s.setTool('move');
+      else if (mod && key === 'c') s.copySelection();
       else if (mod && key === 'v') s.paste();
       else if (mod && key === 'd') {
         e.preventDefault();
@@ -83,8 +90,7 @@ function Workspace() {
       <Canvas />
       {loaded && starting ? <StartScreen /> : null}
       {open ? <Inspector /> : null}
-      {open && !starting ? <HintBar /> : null}
-      {open && !starting ? <ZoomControls /> : null}
+      {open && !starting && !galleryOpen ? <HintBar key={boardId} /> : null}
       <NodePicker />
       {templatesOpen ? <TemplatesModal /> : null}
       {settingsOpen ? <AccountSettings /> : null}

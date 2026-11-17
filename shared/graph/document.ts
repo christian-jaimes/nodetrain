@@ -1,6 +1,6 @@
 import { CATALOG } from './catalog';
 import { RETIRED_MODELS } from './models';
-import { RUN_FIELDS, type AppEdge, type AppNode, type NodeKind } from './types';
+import { RUN_FIELDS, type AppEdge, type AppNode, type NodeGroup, type NodeKind } from './types';
 
 /**
  * The saved form of a workflow graph. Bump DOC_VERSION when the shape
@@ -59,13 +59,23 @@ export type BoardDocument = {
   version: number;
   nodes: SavedNode[];
   edges: SavedEdge[];
+  /** Absent when the workflow has no groups. */
+  groups?: NodeGroup[];
 };
+
+/** Keeps only members that exist, and drops groups left with fewer than two nodes. */
+export function cleanGroups(groups: NodeGroup[] | undefined, nodeIds: Iterable<string>): NodeGroup[] {
+  const ids = new Set(nodeIds);
+  return (groups ?? []).map((g) => ({ ...g, nodeIds: g.nodeIds.filter((id) => ids.has(id)) })).filter((g) => g.nodeIds.length >= 2);
+}
 
 /** Run results live in run history on the server, not in the board. */
 const RUNTIME_ONLY = RUN_FIELDS.filter((f) => f !== 'selectedOutputId');
 
-export function toDocument(nodes: AppNode[], edges: AppEdge[]): BoardDocument {
+export function toDocument(nodes: AppNode[], edges: AppEdge[], groups: NodeGroup[] = []): BoardDocument {
+  const kept = cleanGroups(groups, nodes.map((n) => n.id));
   return {
+    ...(kept.length ? { groups: kept } : {}),
     format: DOC_FORMAT,
     version: DOC_VERSION,
     nodes: nodes.map((n) => {
@@ -90,7 +100,7 @@ export function toDocument(nodes: AppNode[], edges: AppEdge[]): BoardDocument {
 }
 
 /** Turns a saved document back into canvas nodes, filling any missing fields with defaults. */
-export function fromDocument(doc: BoardDocument): { nodes: AppNode[]; edges: AppEdge[] } {
+export function fromDocument(doc: BoardDocument): { nodes: AppNode[]; edges: AppEdge[]; groups: NodeGroup[] } {
   const nodes = doc.nodes
     .filter((n) => n.type in CATALOG)
     .map((n) => {
@@ -99,7 +109,7 @@ export function fromDocument(doc: BoardDocument): { nodes: AppNode[]; edges: App
     });
   const ids = new Set(nodes.map((n) => n.id));
   const edges = doc.edges.filter((e) => ids.has(e.source) && ids.has(e.target));
-  return { nodes, edges };
+  return { nodes, edges, groups: cleanGroups(doc.groups, ids) };
 }
 
 export class DocumentError extends Error {}
@@ -133,9 +143,17 @@ export function migrateDocument(input: unknown): BoardDocument {
     if (typeof e.id !== 'string' || typeof e.source !== 'string' || typeof e.target !== 'string') throw new DocumentError('Every edge needs an id, source and target.');
   }
 
+  const groups: NodeGroup[] = Array.isArray(raw.groups)
+    ? (raw.groups as Record<string, unknown>[])
+        .filter((g) => typeof g?.id === 'string' && Array.isArray(g.nodeIds))
+        .map((g) => ({ id: g.id as string, title: typeof g.title === 'string' && g.title.trim() ? g.title.slice(0, 80) : 'Group', nodeIds: (g.nodeIds as unknown[]).filter((x): x is string => typeof x === 'string') }))
+    : [];
+  const groupsOut = cleanGroups(groups, nodes.map((n) => n.id as string));
+
   return {
     format: DOC_FORMAT,
     version: DOC_VERSION,
+    ...(groupsOut.length ? { groups: groupsOut } : {}),
     nodes: nodes.map((n) => {
       const up = upgradeNode(n.type as NodeKind, (n.typeVersion as number) ?? 1, (n.data as Record<string, unknown>) ?? {});
       return {

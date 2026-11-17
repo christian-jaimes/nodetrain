@@ -1,23 +1,42 @@
-import { useReactFlow, useViewport } from '@xyflow/react';
-import { ArrowRight, Check, ChevronDown, CloudOff, Layers, LoaderCircle, MousePointer2, Plus, Search, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, CloudOff, Layers, LoaderCircle, MousePointer2, Plus, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CATALOG, NODE_KINDS, getPort } from '../../shared/graph/catalog';
 import type { NodeKind } from '../../shared/graph/types';
-import { TEMPLATES } from '../graph/templates';
+import { fromDocument } from '../../shared/graph/document';
+import { TEMPLATES, type Template } from '../graph/templates';
 import { useBoard } from '../store/board';
 import { NodeIconTile } from './icons';
+
+const SAVED_VISIBLE_MS = 3000;
 
 export function TitleBar() {
   const name = useBoard((s) => s.name);
   const setName = useBoard((s) => s.setName);
   const saveState = useBoard((s) => s.saveState);
-  const provider = useBoard((s) => s.provider);
-  const newBlank = useBoard((s) => s.newBlank);
-  const setTemplatesOpen = useBoard((s) => s.setTemplatesOpen);
-  const setSettingsOpen = useBoard((s) => s.setSettingsOpen);
+  const savedTick = useBoard((s) => s.savedTick);
+  const boardId = useBoard((s) => s.boardId);
+  const saveAsTemplate = useBoard((s) => s.saveAsTemplate);
+  const removeBoard = useBoard((s) => s.removeBoard);
   const [editing, setEditing] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [draft, setDraft] = useState(name);
+  const [showSaved, setShowSaved] = useState(false);
+  const firstTick = useRef(savedTick);
+
+  // "Saved" appears for a few seconds after each save, then goes away. Opening a workflow is not a save.
+  useEffect(() => {
+    if (savedTick === firstTick.current) return;
+    setShowSaved(true);
+    const t = setTimeout(() => setShowSaved(false), SAVED_VISIBLE_MS);
+    return () => clearTimeout(t);
+  }, [savedTick]);
+
+  const startEditing = () => {
+    setDraft(name);
+    setEditing(true);
+    setMenu(false);
+  };
 
   return (
     <header className="titlebar">
@@ -25,6 +44,7 @@ export function TitleBar() {
         <input
           className="titlebar__input"
           autoFocus
+          onFocus={(e) => e.currentTarget.select()}
           value={draft}
           aria-label="Workflow name"
           onChange={(e) => setDraft(e.target.value)}
@@ -34,72 +54,80 @@ export function TitleBar() {
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            if (e.key === 'Escape') setEditing(false);
+            if (e.key === 'Escape') {
+              setDraft(name);
+              setEditing(false);
+            }
           }}
         />
       ) : (
-        <button className="titlebar__name" onClick={() => setMenu(!menu)} aria-haspopup="menu" aria-expanded={menu}>
+        <button className="titlebar__name" onClick={() => setMenu(!menu)} onDoubleClick={startEditing} aria-haspopup="menu" aria-expanded={menu} title="Double-click to rename">
           {name} <ChevronDown size={17} />
         </button>
       )}
-      <span className={`save-state save-state--${saveState}`} aria-live="polite">
-        {saveState === 'saving' ? (
-          <>
-            <LoaderCircle size={12} className="spin" /> Saving
-          </>
-        ) : saveState === 'saved' ? (
-          <>
-            <Check size={12} /> Saved
-          </>
-        ) : saveState === 'error' ? (
+      <span className={`save-state save-state--${saveState === 'error' ? 'error' : 'saved'}`} aria-live="polite">
+        {saveState === 'error' ? (
           <>
             <CloudOff size={12} /> Not saved
           </>
+        ) : showSaved ? (
+          <>
+            <Check size={12} /> Saved
+          </>
         ) : null}
       </span>
-      {provider ? (
-        <button
-          className={`provider-pill provider-pill--${provider.id}`}
-          onClick={() => setSettingsOpen(true)}
-          title={provider.id === 'simulated' ? 'No model is called. Add your OpenAI API key in Account settings to generate real images.' : 'Images are generated with your OpenAI API key. Click to manage it.'}
-        >
-          {provider.id === 'simulated' ? 'Simulated' : provider.label}
-        </button>
-      ) : null}
       {menu ? (
         <>
           <div className="backdrop-clear" onClick={() => setMenu(false)} />
           <div className="menu" role="menu">
-            <button
-              role="menuitem"
-              onClick={() => {
-                setDraft(name);
-                setEditing(true);
-                setMenu(false);
-              }}
-            >
+            <button role="menuitem" onClick={startEditing}>
               Rename
             </button>
             <button
               role="menuitem"
               onClick={() => {
-                setTemplatesOpen(true);
                 setMenu(false);
+                void saveAsTemplate();
               }}
             >
-              Browse templates
+              Save as template
             </button>
             <button
               role="menuitem"
+              className="is-danger"
               onClick={() => {
-                void newBlank();
                 setMenu(false);
+                setConfirming(true);
               }}
             >
-              New blank workflow
+              Delete workflow
             </button>
           </div>
         </>
+      ) : null}
+      {confirming ? (
+        <div className="modal-backdrop" onClick={() => setConfirming(false)}>
+          <div className="modal modal--narrow" role="alertdialog" aria-modal="true" aria-labelledby="del-title" onClick={(e) => e.stopPropagation()}>
+            <h2 id="del-title" className="confirm__title">
+              Delete “{name}”?
+            </h2>
+            <p className="muted">This permanently deletes the workflow. It can’t be undone. Images it generated stay on this computer.</p>
+            <div className="confirm__actions">
+              <button className="secondary-btn" onClick={() => setConfirming(false)} autoFocus>
+                Cancel
+              </button>
+              <button
+                className="primary-btn"
+                onClick={() => {
+                  setConfirming(false);
+                  if (boardId) void removeBoard(boardId);
+                }}
+              >
+                <Trash2 size={15} /> Delete workflow
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </header>
   );
@@ -142,8 +170,22 @@ export function StartScreen() {
 export function TemplatesModal() {
   const setTemplatesOpen = useBoard((s) => s.setTemplatesOpen);
   const loadTemplate = useBoard((s) => s.loadTemplate);
+  const userTemplates = useBoard((s) => s.userTemplates);
+  const deleteTemplate = useBoard((s) => s.deleteTemplate);
   const [q, setQ] = useState('');
-  const list = TEMPLATES.filter((t) => (t.name + t.description + t.tags.join(' ')).toLowerCase().includes(q.toLowerCase()));
+  const mine = useMemo<Template[]>(
+    () =>
+      userTemplates.map((u) => ({
+        id: `user:${u.id}`,
+        name: u.name,
+        description: 'Saved from one of your workflows.',
+        tags: ['Your template'],
+        preview: u.nodeKinds as NodeKind[],
+        build: async () => ({ name: u.name, ...fromDocument(u.document) }),
+      })),
+    [userTemplates],
+  );
+  const list = [...mine, ...TEMPLATES].filter((t) => (t.name + t.description + t.tags.join(' ')).toLowerCase().includes(q.toLowerCase()));
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setTemplatesOpen(false);
@@ -192,6 +234,11 @@ export function TemplatesModal() {
                 >
                   Use template <ArrowRight size={14} />
                 </button>
+                {t.id.startsWith('user:') ? (
+                  <button className="icon-btn icon-btn--sm" onClick={() => void deleteTemplate(t.id.slice(5))} aria-label={`Delete template ${t.name}`} title="Delete template">
+                    <Trash2 size={14} />
+                  </button>
+                ) : null}
               </footer>
             </article>
           ))}
@@ -340,28 +387,24 @@ export function Toast() {
   );
 }
 
-export function HintBar() {
-  return (
-    <div className="hintbar" role="region" aria-label="Canvas tips">
-      <MousePointer2 size={15} /> Double-click to create node <span>·</span> Drag from a port to connect <span>·</span> Pinch to zoom
-    </div>
-  );
-}
+const HINT_VISIBLE_MS = 10000;
 
-export function ZoomControls() {
-  const { zoomIn, zoomOut, zoomTo } = useReactFlow();
-  const { zoom } = useViewport();
+/** How-to tips, shown for about 10 seconds when a workflow opens: centered on a blank canvas, at the bottom on a workflow that already has nodes. */
+export function HintBar() {
+  const [blank] = useState(() => useBoard.getState().nodes.length === 0);
+  const [phase, setPhase] = useState<'shown' | 'leaving' | 'gone'>('shown');
+  useEffect(() => {
+    const a = setTimeout(() => setPhase('leaving'), HINT_VISIBLE_MS - 500);
+    const b = setTimeout(() => setPhase('gone'), HINT_VISIBLE_MS);
+    return () => {
+      clearTimeout(a);
+      clearTimeout(b);
+    };
+  }, []);
+  if (phase === 'gone') return null;
   return (
-    <div className="zoom">
-      <button className="icon-btn icon-btn--sm" onClick={() => void zoomOut({ duration: 150 })} aria-label="Zoom out">
-        −
-      </button>
-      <button className="zoom__value" onClick={() => void zoomTo(1, { duration: 200 })} title="Reset to 100%">
-        {Math.round(zoom * 100)}%
-      </button>
-      <button className="icon-btn icon-btn--sm" onClick={() => void zoomIn({ duration: 150 })} aria-label="Zoom in">
-        +
-      </button>
+    <div className={`hintbar ${blank ? 'hintbar--center' : ''} ${phase === 'leaving' ? 'is-leaving' : ''}`} role="region" aria-label="Canvas tips">
+      <MousePointer2 size={15} /> Double-click to create node <span>·</span> Drag from a port to connect <span>·</span> V to select, H to move, Ctrl+G to group
     </div>
   );
 }

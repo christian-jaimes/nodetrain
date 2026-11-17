@@ -20,6 +20,15 @@ export type BoardSummary = {
   preview: BoardPreview;
 };
 
+/** A workflow the user saved to reuse as a starting point. */
+export type UserTemplate = {
+  id: string;
+  name: string;
+  createdAt: number;
+  nodeKinds: string[];
+  document: BoardDocument;
+};
+
 /** Local profile, shown in the sidebar. Stored on this computer only. */
 export type Profile = {
   name: string;
