@@ -831,6 +831,12 @@ input.insp-head__title:focus {
   gap: 8px;
 }
 .activity__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
   background: var(--field);
   border: 1px solid var(--border);
   border-left: 3px solid var(--ok);
@@ -1037,6 +1043,54 @@ input.insp-head__title:focus {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.nt-node__title-input {
+  width: 100%;
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--field);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin: -2px -7px;
+  outline: none;
+}
+.nt-node__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.status-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: var(--text-2);
+  background: var(--field);
+  border: 1px solid var(--border);
+  cursor: default;
+}
+.status-icon--running,
+.status-icon--queued {
+  color: #fff;
+  border-color: rgba(242, 41, 58, 0.5);
+  background: var(--accent-soft);
+}
+.status-icon--succeeded {
+  color: var(--ok);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+.status-icon--failed {
+  color: var(--err);
+  border-color: rgba(255, 107, 107, 0.4);
+}
+.status-icon--stale {
+  color: var(--warn);
+  border-color: rgba(251, 191, 36, 0.4);
+}
 .nt-node__subtitle {
   color: var(--text-2);
   font-size: 13px;
@@ -1061,7 +1115,7 @@ input.insp-head__title:focus {
   background: var(--accent-hover);
 }
 
-/* Ports: text = purple diamond, image = red circle. */
+/* Ports: one circle shape for both types. Text = purple, image = red. */
 .nt-port.react-flow__handle {
   width: 14px;
   height: 14px;
@@ -1071,10 +1125,6 @@ input.insp-head__title:focus {
 }
 .nt-port--text.react-flow__handle {
   border-color: var(--port-text);
-  border-radius: 3px;
-  width: 12px;
-  height: 12px;
-  transform: translate(0, -50%) rotate(45deg);
 }
 /* Ports only appear once linked: inputs at the top-left, the output at the top-right. Nodes connect by dropping one onto another. */
 .nt-port.react-flow__handle.is-idle {
@@ -1092,12 +1142,6 @@ input.insp-head__title:focus {
 }
 .nt-node__header .nt-port.react-flow__handle-right {
   right: -8px;
-}
-.nt-node__header .nt-port--text.react-flow__handle-left {
-  left: -7px;
-}
-.nt-node__header .nt-port--text.react-flow__handle-right {
-  right: -7px;
 }
 .react-flow__node.drop-ok .nt-node {
   border-color: var(--ok);
@@ -1135,9 +1179,6 @@ input.insp-head__title:focus {
 }
 .react-flow__handle:hover {
   transform: translate(0, -50%) scale(1.25);
-}
-.nt-port--text.react-flow__handle:hover {
-  transform: translate(0, -50%) rotate(45deg) scale(1.25);
 }
 .port-row {
   position: relative;
@@ -2508,4 +2549,101 @@ input.insp-head__title:focus {
 .image-grid > .is-pickable:hover {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* ---------- Run detail ---------- */
+.activity__item:hover {
+  border-color: var(--text-3);
+  background: var(--node);
+}
+.activity__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.activity > li {
+  list-style: none;
+}
+.modal--run {
+  width: min(680px, 100%);
+}
+.run-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 16px;
+}
+.run-detail h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.run-detail__prompt {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-field);
+  padding: 10px 12px;
+  user-select: text;
+}
+.run-detail__parts {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.run-detail__parts ol {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.run-detail__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+.run-detail__facts dt {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.run-detail__facts dd {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+}
+.run-detail__thumbs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.run-detail__thumbs img {
+  display: block;
+  height: 72px;
+  width: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.run-detail__thumbs--big img {
+  height: 180px;
+}
+.run-pill {
+  font-weight: 600;
+  color: var(--ok);
+}
+.run-pill--failed {
+  color: var(--err);
+}
+.run-pill--canceled {
+  color: var(--text-3);
 }

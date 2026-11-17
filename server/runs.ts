@@ -355,7 +355,10 @@ export class Orchestrator {
     const provider = this.getProvider();
     const request = {
       prompt: inputs.prompt,
+      // The pieces the prompt was joined from, and the reference images, so a run can be inspected later.
+      promptParts: inputs.promptParts,
       referenceIds: inputs.references.map((r) => r.id),
+      references: inputs.references.map((r) => ({ id: r.id, name: r.name, src: r.src, thumb: r.thumb })),
       model: d.model,
       aspectRatio: d.aspectRatio,
       quality: d.quality,

@@ -6,7 +6,7 @@ import type { ImageGenerationNode as GenNode } from '../../../shared/graph/types
 import { isStale, resolveInputs } from '../../../shared/graph/validate';
 
 import { useBoard } from '../../store/board';
-import { ImageMosaic, NodeShell, OutputGallery } from './parts';
+import { ImageMosaic, NodeShell, OutputGallery, StatusIcon } from './parts';
 
 type Option = string | { value: string; label: string; disabled?: boolean };
 
@@ -103,13 +103,14 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
 
   return (
     <NodeShell
+      id={id}
       kind="imageGeneration"
       title={data.title}
       selected={selected}
-      width={400}
-      hideSubtitle
       action={
-        <button
+        <>
+          <StatusIcon status={status} detail={status === 'failed' ? data.error : undefined} />
+          <button
           className="run-btn nodrag"
           title="Run this node and anything it depends on"
           aria-label={`Run ${data.title}`}
@@ -118,6 +119,7 @@ export function ImageGenerationNode(props: NodeProps<GenNode>) {
         >
           <Play size={15} fill="currentColor" />
         </button>
+        </>
       }
     >
       <div

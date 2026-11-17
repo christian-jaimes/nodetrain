@@ -106,14 +106,23 @@ function incoming(edges: AppEdge[], nodeId: string, handle: string) {
 /** Looks up the images a generation node currently passes downstream. */
 export type OutputLookup = (node: ImageGenerationNode) => ImageAsset[];
 
+/** Written in a prompt, this is replaced at run time by the name of the Image Generation node being run. */
+export const TITLE_TOKEN = '<node title>';
+const TITLE_TOKEN_RE = /<\s*node[ _-]?title\s*>/gi;
+
+/** Fills every `<node title>` in a prompt with the node's name. */
+export function fillTitleToken(text: string, title: string): string {
+  return text.replace(TITLE_TOKEN_RE, () => title.trim());
+}
+
 export function resolveInputs(node: ImageGenerationNode, nodes: AppNode[], edges: AppEdge[], outputOf: OutputLookup = referenceOutputs): ResolvedInputs {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const promptParts: ResolvedInputs['promptParts'] = [];
   for (const e of incoming(edges, node.id, 'prompt')) {
     const src = byId.get(e.source);
-    if (src?.type === 'prompt' && src.data.text.trim()) promptParts.push({ from: src.data.title, text: src.data.text.trim() });
+    if (src?.type === 'prompt' && src.data.text.trim()) promptParts.push({ from: src.data.title, text: fillTitleToken(src.data.text.trim(), node.data.title) });
   }
-  if (node.data.prompt.trim()) promptParts.push({ from: 'This node', text: node.data.prompt.trim() });
+  if (node.data.prompt.trim()) promptParts.push({ from: 'This node', text: fillTitleToken(node.data.prompt.trim(), node.data.title) });
 
   const references: ImageAsset[] = [];
   for (const e of incoming(edges, node.id, 'references')) {

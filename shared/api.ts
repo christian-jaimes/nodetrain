@@ -79,7 +79,15 @@ export type NodeExecutionView = {
   error?: string;
   errorCategory?: string;
   /** Inputs and settings actually sent, for provenance. */
-  request?: { prompt: string; referenceIds: string[]; model: string; aspectRatio: string; quality: string; provider: string };
+  request?: {
+    /** The prompt as sent, after connected prompts were joined and <node title> was filled in. */
+    prompt: string;
+    /** Where the prompt text came from, in order. Absent on runs made before this was recorded. */
+    promptParts?: { from: string; text: string }[];
+    referenceIds: string[];
+    /** The reference images used. Absent on older runs. */
+    references?: { id: string; name: string; src: string; thumb?: string }[];
+    model: string; aspectRatio: string; quality: string; provider: string };
   outputs: ImageAsset[];
   runKey?: string;
   /** Token usage as reported by the provider, when it reports it. */
