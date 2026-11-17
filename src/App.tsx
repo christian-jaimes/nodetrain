@@ -63,7 +63,13 @@ function Workspace() {
       } else if (mod && (key === 'y' || (key === 'z' && e.shiftKey))) {
         e.preventDefault();
         s.redo();
-      } else if (mod && key === 'c') s.copySelection();
+      } else if (mod && key === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) s.ungroup();
+        else s.groupSelection();
+      } else if (!mod && !e.altKey && key === 'v') s.setTool('select');
+      else if (!mod && !e.altKey && key === 'h') s.setTool('move');
+      else if (mod && key === 'c') s.copySelection();
       else if (mod && key === 'v') s.paste();
       else if (mod && key === 'd') {
         e.preventDefault();

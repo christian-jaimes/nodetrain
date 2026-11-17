@@ -75,6 +75,9 @@ export type ImageGenerationNode = Node<ImageGenerationData, 'imageGeneration'>;
 export type AppNode = PromptNode | ImageInputNode | ImageGenerationNode;
 export type AppEdge = Edge;
 
+/** A named set of nodes drawn inside one frame. Visual only: it never changes how a workflow runs. */
+export type NodeGroup = { id: string; title: string; nodeIds: string[] };
+
 export const RUN_FIELDS = [
   'status',
   'error',

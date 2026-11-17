@@ -104,6 +104,16 @@ describe('board documents', () => {
     expect(doc.nodes[0].data).not.toHaveProperty('status');
   });
 
+  it('keeps groups through save and load, and drops members that no longer exist', () => {
+    const a = CATALOG.prompt.create();
+    const mk = (id: string) => ({ id, type: 'prompt', position: { x: 0, y: 0 }, data: a }) as unknown as AppNode;
+    const doc = toDocument([mk('a'), mk('b'), mk('c')], [], [{ id: 'g1', title: 'Styles', nodeIds: ['a', 'b', 'gone'] }, { id: 'g2', title: 'Lonely', nodeIds: ['c', 'gone'] }]);
+    expect(doc.groups).toEqual([{ id: 'g1', title: 'Styles', nodeIds: ['a', 'b'] }]);
+    const back = fromDocument(migrateDocument(JSON.parse(JSON.stringify(doc))));
+    expect(back.groups).toEqual(doc.groups);
+    expect(toDocument([mk('a')], [], [])).not.toHaveProperty('groups');
+  });
+
   it('refuses boards from a newer version and malformed input', () => {
     expect(() => migrateDocument({ version: 99, nodes: [], edges: [] })).toThrow(/newer/);
     expect(() => migrateDocument({ version: 1, nodes: [{ id: 'x' }], edges: [] })).toThrow();

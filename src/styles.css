@@ -410,7 +410,7 @@ button:disabled {
 .rightbar {
   top: 20px;
   right: 20px;
-  width: 400px;
+  width: 440px;
   max-height: calc(100% - 40px);
   display: flex;
   flex-direction: column;
@@ -2287,4 +2287,92 @@ input.insp-head__title:focus {
 .key-chip.is-on {
   color: var(--ok);
   background: rgba(74, 222, 128, 0.1);
+}
+
+/* ---------- Node groups ---------- */
+.group-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.group-frame.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.group-frame__label {
+  pointer-events: auto;
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.group-frame__title,
+.group-frame__input {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+.group-frame__title:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+.group-frame__input {
+  background: var(--field);
+  border: 1px solid var(--border-strong);
+  outline: 0;
+  color: var(--text);
+  width: 160px;
+}
+.group-frame__ungroup {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--text-3);
+  opacity: 0;
+}
+.group-frame:hover .group-frame__ungroup,
+.group-frame__ungroup:focus-visible {
+  opacity: 1;
+}
+.group-frame__ungroup:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+.group-cta {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin-left: -80px;
+}
+.group-cta button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 600;
+}
+.group-cta button:hover {
+  border-color: var(--accent);
+}
+.group-cta kbd {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-3);
 }

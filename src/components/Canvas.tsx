@@ -7,6 +7,7 @@ import {
   type FinalConnectionState,
   type IsValidConnection,
   type NodeTypes,
+  SelectionMode,
 } from '@xyflow/react';
 import { useEffect, useMemo, type DragEvent, type MouseEvent } from 'react';
 import { getPort } from '../../shared/graph/catalog';
@@ -14,6 +15,7 @@ import { FIT_OPTIONS } from '../lib/ui';
 import type { AppEdge, AppNode, NodeKind } from '../../shared/graph/types';
 import { checkConnection } from '../../shared/graph/validate';
 import { useBoard } from '../store/board';
+import { Groups } from './Groups';
 import { ImageGenerationNode } from './nodes/ImageGenerationNode';
 import { ImageInputNode } from './nodes/ImageInputNode';
 import { PromptNode } from './nodes/PromptNode';
@@ -37,6 +39,7 @@ export function Canvas() {
   const addNode = useBoard((s) => s.addNode);
   const setPicker = useBoard((s) => s.setPicker);
   const { screenToFlowPosition, fitView } = useReactFlow();
+  const tool = useBoard((s) => s.tool);
   const fitNonce = useBoard((s) => s.fitNonce);
   const measured = useNodesInitialized();
 
@@ -132,6 +135,10 @@ export function Canvas() {
         deleteKeyCode={['Delete', 'Backspace']}
         multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
         panOnScroll
+        // Move: dragging empty canvas pans. Select: it draws a box that selects every node it fully contains, and the middle or right button pans.
+        panOnDrag={tool === 'move' ? true : [1, 2]}
+        selectionOnDrag={tool === 'select'}
+        selectionMode={SelectionMode.Full}
         zoomOnPinch
         minZoom={0.15}
         maxZoom={2.5}
@@ -139,7 +146,9 @@ export function Canvas() {
         fitViewOptions={FIT_OPTIONS}
         proOptions={{ hideAttribution: true }}
         connectionRadius={28}
-      />
+      >
+        <Groups />
+      </ReactFlow>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { CATALOG } from '../../shared/graph/catalog';
-import type { AppEdge, AppNode, ImageGenerationData, NodeKind } from '../../shared/graph/types';
+import type { AppEdge, AppNode, ImageGenerationData, NodeGroup, NodeKind } from '../../shared/graph/types';
 import { sampleBackdrop, sampleBottle, uploadDataUrl } from '../lib/images';
 
 export type Template = {
@@ -10,7 +10,7 @@ export type Template = {
   tags: string[];
   /** Node kinds shown on the template card. */
   preview: NodeKind[];
-  build: () => Promise<{ name: string; nodes: AppNode[]; edges: AppEdge[] }>;
+  build: () => Promise<{ name: string; nodes: AppNode[]; edges: AppEdge[]; groups?: NodeGroup[] }>;
 };
 
 function node(kind: NodeKind, x: number, y: number, patch: Record<string, unknown> = {}): AppNode {

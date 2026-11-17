@@ -1,5 +1,5 @@
 import { useReactFlow } from '@xyflow/react';
-import { ChevronDown, Download, History, Play, Redo2, Scan, Square, Trash2, Undo2, Upload } from 'lucide-react';
+import { ChevronDown, Download, Hand, History, Play, Redo2, Scan, Square, SquareDashedMousePointer, Trash2, Undo2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { CATALOG } from '../../shared/graph/catalog';
@@ -78,9 +78,19 @@ function Toolbar({ historyOpen, onToggleHistory, node }: { historyOpen: boolean;
   const redo = useBoard((s) => s.redo);
   const canUndo = useBoard((s) => s.past.length > 0);
   const canRedo = useBoard((s) => s.future.length > 0);
+  const tool = useBoard((s) => s.tool);
+  const setTool = useBoard((s) => s.setTool);
   const { fitView } = useReactFlow();
   return (
     <div className="toolbar" role="toolbar" aria-label="Workflow actions">
+      <button
+        className={`icon-btn ${tool === 'select' ? 'is-on' : ''}`}
+        onClick={() => setTool(tool === 'move' ? 'select' : 'move')}
+        title={tool === 'move' ? 'Move tool: drag to pan. Click, or press V, for the select tool' : 'Select tool: drag to select nodes. Click, or press H, for the move tool'}
+        aria-label={tool === 'move' ? 'Move tool active. Switch to select tool' : 'Select tool active. Switch to move tool'}
+      >
+        {tool === 'move' ? <Hand size={18} /> : <SquareDashedMousePointer size={18} />}
+      </button>
       <button className="icon-btn" onClick={() => void fitView(FIT_OPTIONS)} title="Fit workflow (Shift+1)" aria-label="Fit workflow to screen">
         <Scan size={18} />
       </button>
