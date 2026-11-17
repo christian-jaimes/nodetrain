@@ -50,7 +50,9 @@ function Workspace() {
       if (mod && e.key === 'Enter') {
         e.preventDefault();
         const sel = s.nodes.filter((n) => n.selected);
-        void s.run(sel.length === 1 && sel[0].type === 'imageGeneration' ? sel[0].id : undefined);
+        if (sel.length === 1) {
+          if (sel[0].type === 'imageGeneration') void s.run(sel[0].id, false);
+        } else void s.run();
         return;
       }
       if (isTyping(e)) return;

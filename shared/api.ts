@@ -54,6 +54,10 @@ export type SaveBoardRequest = {
   document: BoardDocument;
 };
 
+/** Generations run and what they cost, split into text (prompt) and image (references and output) spend. */
+export type SpendStats = { generations: number; textUsd: number; imageUsd: number };
+export const EMPTY_SPEND: BoardRunState['spend'] = { board: 0, today: 0, all: { generations: 0, textUsd: 0, imageUsd: 0 }, byNode: {} };
+
 export type RunStatusApi = 'queued' | 'running' | 'succeeded' | 'partial' | 'failed' | 'canceled';
 export type NodeExecStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
 
@@ -99,7 +103,7 @@ export type BoardRunState = {
   activeRunId: string | null;
   activity: NodeExecutionView[];
   /** Estimated USD: everything run on this board, and all boards since local midnight. */
-  spend: { board: number; today: number };
+  spend: { board: number; today: number; /** Counts and cost split for the whole board and for each node. */ all: SpendStats; byNode: Record<string, SpendStats> };
 };
 
 export type ApiError = { error: string; code?: string };

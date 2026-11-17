@@ -126,6 +126,7 @@ export function Canvas() {
         onConnect={onConnect}
         onConnectEnd={onConnectEnd}
         isValidConnection={isValidConnection}
+        onPaneClick={() => useBoard.getState().setHistoryOpen(false)}
         onNodeDragStart={() => commit()}
         onSelectionDragStart={() => commit()}
         forceColorMode="dark"
